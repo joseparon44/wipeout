@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WIPEOUT — perp liquidation radar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============ WIPEOUT terminal ============ */
+:root{
+  --bg:#07090d; --surface:#0c1016; --surface2:#10151d; --raised:#141b25;
+  --ink:#edf2f8; --ink2:#9aa6b5; --muted:#5f6b7a; --hair:#1a222d; --hair2:#232d3a;
+  --long:#2ee6a6; --long-dim:#1a8f68; --short:#ff5464; --short-dim:#a53644;
+  --warn:#f5b81c; --link:#7fb1ff;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --disp:'Chakra Petch',var(--mono);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font:13px/1.45 var(--mono);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;background:
+  radial-gradient(1200px 500px at 50% -10%, rgba(46,230,166,.045), transparent 60%),
+  radial-gradient(900px 420px at 90% 110%, rgba(255,84,100,.05), transparent 55%),
+  var(--bg);}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px);}
+a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--long)} .down{color:var(--short)} .warn{color:var(--warn)}
+.microlabel{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+
+/* ---- header ---- */
+header{display:flex;align-items:center;gap:20px;padding:10px 18px;border-bottom:1px solid var(--hair);flex-wrap:wrap}
+.wordmark{font-family:var(--disp);font-weight:700;font-size:22px;letter-spacing:.14em;color:var(--ink);white-space:nowrap}
+.wordmark b{color:var(--short);font-weight:700}
+.wordmark .sub{display:block;font-family:var(--mono);font-weight:400;font-size:9px;letter-spacing:.22em;color:var(--muted);margin-top:-2px}
+.sesstiles{display:flex;gap:22px;margin-left:auto;align-items:center;flex-wrap:wrap}
+.sesstiles .sub2{font-size:9px}
+.tile .microlabel{margin-bottom:1px}
+.tile .v{font-size:15px;font-weight:600}
+#pulseWrap{display:flex;flex-direction:column;gap:2px}
+#pulse{background:var(--surface);border:1px solid var(--hair);border-radius:3px}
+
+/* ---- filter rows ---- */
+.filters{display:flex;gap:8px;align-items:center;padding:8px 18px;border-bottom:1px solid var(--hair);flex-wrap:wrap}
+.chip{font:12px var(--mono);color:var(--ink2);padding:3px 10px;border:1px solid var(--hair2);border-radius:99px;transition:all .12s}
+.chip:hover{border-color:var(--muted);color:var(--ink)}
+.chip.on{color:var(--bg);background:var(--ink);border-color:var(--ink);font-weight:600}
+.vchip{display:flex;align-items:center;gap:6px}
+.vchip .dot{width:6px;height:6px;border-radius:99px;background:var(--muted);flex:none}
+.vchip .dot.ok{background:var(--long)} .vchip .dot.warn{background:var(--warn);animation:blink 1.2s infinite}
+.vchip .dot.err{background:var(--short)}
+.vchip.off{opacity:.38}
+.vchip .q{font-size:9px;color:var(--muted);letter-spacing:.05em}
+.dd{position:relative}
+.ddpanel{position:absolute;top:calc(100% + 6px);left:0;z-index:70;background:var(--raised);border:1px solid var(--hair2);
+  border-radius:8px;width:330px;max-height:440px;display:flex;flex-direction:column;box-shadow:0 14px 44px rgba(0,0,0,.55)}
+.ddpanel[hidden]{display:none !important} /* author display:flex would otherwise defeat the hidden attribute */
+.ddpanel input{margin:8px;padding:6px 10px;background:var(--surface2);border:1px solid var(--hair2);border-radius:5px;
+  color:var(--ink);font:12px var(--mono)}
+.ddpanel input:focus{outline:none;border-color:var(--muted)}
+#coinList{overflow-y:auto;padding-bottom:6px;scrollbar-width:thin}
+.ddcat{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);padding:9px 12px 3px}
+.ddrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;width:100%;padding:5px 12px;
+  font:12px var(--mono);color:var(--ink2);text-align:left}
+.ddrow:hover{background:var(--surface2);color:var(--ink)}
+.ddrow.sel{color:var(--ink);font-weight:600}
+.ddrow .v{color:var(--muted);font-size:10.5px}
+@keyframes blink{50%{opacity:.3}}
+.spacer{flex:1}
+.zoomset{display:flex;gap:2px;border:1px solid var(--hair2);border-radius:6px;overflow:hidden}
+.zoomset button{padding:3px 9px;font-size:11px;color:var(--ink2)}
+.zoomset button.on{background:var(--raised);color:var(--ink)}
+
+/* ---- layout ---- */
+main{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:14px;padding:14px 18px;align-items:start}
+@media(max-width:1100px){main{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--hair);border-radius:8px;overflow:hidden}
+.cardhead{display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid var(--hair)}
+.cardhead h2{font-family:var(--disp);font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+.cardhead .note{font-size:10px;color:var(--muted)}
+.cardhead .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+/* ---- ladder ---- */
+#ladderCard{position:relative}
+#ladderWrap{position:relative}
+#ladder{display:block;width:100%;cursor:crosshair}
+#ladderTable{display:none;max-height:640px;overflow:auto}
+#ladderCard.tableview #ladder{display:none}
+#ladderCard.tableview #ladderTable{display:block}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:right;padding:5px 12px;border-bottom:1px solid var(--hair);font-size:12px}
+th{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;position:sticky;top:0;background:var(--surface)}
+th:first-child,td:first-child{text-align:left}
+#tooltip{position:fixed;z-index:50;background:var(--raised);border:1px solid var(--hair2);border-radius:6px;
+  padding:8px 11px;font-size:11.5px;pointer-events:none;display:none;max-width:360px;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+#tooltip .tt-title{font-weight:600;margin-bottom:3px;white-space:nowrap}
+#tooltip .row{display:flex;justify-content:space-between;gap:14px;color:var(--ink2);white-space:nowrap}
+#tooltip .row b{color:var(--ink);font-weight:500}
+.toggle{font-size:10px;letter-spacing:.08em;color:var(--ink2);border:1px solid var(--hair2);border-radius:5px;padding:2px 8px}
+.toggle.on{color:var(--ink);background:var(--raised)}
+.bigpx{font-size:20px;font-weight:600;letter-spacing:.02em}
+#px24{font-size:12px;font-weight:600}
+.maplegend{padding:7px 14px;border-top:1px solid var(--hair);font-size:10.5px;color:var(--muted)}
+.maplegend b{color:var(--ink2)}
+.vgroup{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 2px 0 8px}
+
+/* ---- right column ---- */
+#rightcol{display:flex;flex-direction:column;gap:14px;min-width:0}
+#feedList{max-height:430px;overflow-y:auto;scrollbar-width:thin}
+.feedrow{display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid var(--hair);font-size:12px;flex-wrap:wrap}
+.feedsub{width:100%;font-size:9.5px;color:var(--muted);padding-left:60px;margin-top:-2px}
+.feedrow.fresh{animation:fein .25s ease}
+@keyframes fein{from{opacity:0;transform:translateY(-4px)}}
+.feedrow.big{background:linear-gradient(90deg, rgba(245,184,28,.10), transparent 70%)}
+.feedrow .t{color:var(--muted);font-size:10px;flex:none;width:52px}
+.vbadge{flex:none;font-size:9px;letter-spacing:.06em;padding:1px 6px;border-radius:3px;border:1px solid var(--hair2);color:var(--ink2)}
+.feedrow .coin{font-weight:600;flex:none;min-width:44px}
+.sidetag{flex:none;font-size:9.5px;letter-spacing:.07em;font-weight:600;padding:1px 6px;border-radius:3px}
+.sidetag.long{color:var(--long);background:rgba(46,230,166,.09)}
+.sidetag.short{color:var(--short);background:rgba(255,84,100,.10)}
+.feedrow .usd{margin-left:auto;font-weight:600;font-size:12.5px}
+.feedrow .px{color:var(--muted);font-size:10.5px;flex:none}
+.feedempty{padding:26px 14px;color:var(--muted);text-align:center;font-size:12px}
+
+/* ---- HL stats panel ---- */
+.tilegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hair)}
+.tilegrid .cell{background:var(--surface);padding:10px 12px}
+.tilegrid .v{font-size:16px;font-weight:600;margin-top:1px}
+.tilegrid .s{font-size:10px;color:var(--muted)}
+.splitwrap{padding:12px 14px;border-top:1px solid var(--hair)}
+.splitbar{display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--surface2);margin-top:5px}
+.splitbar .L{background:var(--long)} .splitbar .S{background:var(--short);margin-left:2px}
+.splitlabels{display:flex;justify-content:space-between;margin-top:4px;font-size:11px}
+#namedList{border-top:1px solid var(--hair)}
+.namedrow{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--hair);font-size:12px}
+.namedrow .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.namedrow .pos{color:var(--ink2);margin-left:auto;text-align:right;font-size:11px}
+#crowdList{border-top:1px solid var(--hair)}
+.crowdrow{display:flex;align-items:center;gap:10px;padding:6px 14px;border-bottom:1px solid var(--hair);font-size:12px}
+.crowdrow .share{color:var(--muted);font-size:10px;width:88px;text-align:right}
+.crowdrow .coin{font-weight:600;width:66px}
+.crowdbar{flex:1;height:9px;border-radius:3px;overflow:hidden;background:var(--surface2);display:flex}
+.crowdbar i{display:block;height:100%}
+.crowdrow .amt{width:64px;text-align:right;font-weight:600;font-size:11.5px}
+#watchbox{padding:10px 14px;border-top:1px solid var(--hair)}
+#watchbox textarea{width:100%;height:44px;background:var(--surface2);border:1px solid var(--hair2);border-radius:5px;
+  color:var(--ink);font:11px var(--mono);padding:6px 8px;resize:vertical}
+#watchbox .microlabel{margin-bottom:5px}
+
+/* ---- venue table ---- */
+#leftcol{display:flex;flex-direction:column;gap:14px;min-width:0}
+.minisplit{display:inline-flex;width:86px;height:8px;border-radius:3px;overflow:hidden;background:var(--surface2);vertical-align:middle}
+.minisplit i{display:block;height:100%}
+.minisplit .L{background:var(--long)} .minisplit .S{background:var(--short);margin-left:2px}
+td .sub{display:block;font-size:9px;color:var(--muted);letter-spacing:.04em}
+.qtag{font-size:9px;letter-spacing:.06em;padding:1px 5px;border-radius:3px;border:1px solid var(--hair2);color:var(--muted)}
+
+footer{padding:10px 18px 22px;color:var(--muted);font-size:10.5px;line-height:1.7}
+
+/* ---- small screens ---- */
+@media(max-width:760px){
+  header{gap:10px;padding:8px 12px}
+  .wordmark{font-size:17px}
+  #pulseWrap{display:none}
+  .sesstiles{margin-left:auto;gap:12px}
+  .tile .v{font-size:13px}
+  .filters{padding:6px 10px}
+  main{padding:10px;gap:10px}
+  .cardhead{flex-wrap:wrap;row-gap:4px}
+  .cardhead .right{flex-wrap:wrap}
+  .bigpx{font-size:16px}
+  .ddpanel{width:min(330px,88vw)}
+  .maplegend{font-size:9.5px}
+  #feedList{max-height:330px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">WIPE<b>OUT</b><span class="sub">PERP LIQUIDATION RADAR</span></div>
+  <div id="pulseWrap" title="How much money got liquidated in each 30-second slice, last 20 minutes. Taller bar = more $ wiped. Green part = longs, red part = shorts — an even split shows half/half.">
+    <span class="microlabel">$ liquidated · 30s slices · <span class="up">■ longs</span> <span class="down">■ shorts</span></span>
+    <canvas id="pulse" width="252" height="34"></canvas></div>
+  <div class="sesstiles">
+    <span id="liqWindows" style="display:flex;gap:16px"></span>
+    <div class="tile"><div class="microlabel">largest single</div><div class="v num" id="sessMax">—</div></div>
+  </div>
+</header>
+
+<div class="filters">
+  <span class="microlabel" style="margin-right:4px">coin</span>
+  <div class="dd" id="coinDD">
+    <button class="chip on" id="coinBtn">BTC ▾</button>
+    <div class="ddpanel" id="coinPanel" hidden>
+      <input id="coinSearch" placeholder="search coins…" autocomplete="off">
+      <div id="coinList"></div>
+    </div>
+  </div>
+  <span class="microlabel" id="coinMeta"></span>
+</div>
+<div class="filters">
+  <span class="microlabel" style="margin-right:4px">venues</span>
+  <span id="venueChips" style="display:flex;gap:8px;flex-wrap:wrap"></span>
+  <span class="spacer"></span>
+  <span class="microlabel">map range</span>
+  <span class="zoomset" id="zoomset">
+    <button data-z="0.02">±2%</button><button data-z="0.05" class="on">±5%</button><button data-z="0.10">±10%</button><button data-z="0.20">±20%</button><button data-z="0.40">±40%</button>
+  </span>
+</div>
+
+<main>
+  <div id="leftcol">
+  <div class="card" id="ladderCard">
+    <div class="cardhead">
+      <h2 id="ladderTitle">BTC</h2>
+      <span class="bigpx num" id="livePx">—</span>
+      <span class="num" id="px24"></span>
+      <span class="note">price + where positions die — real Hyperliquid data</span>
+      <div class="right">
+        <span class="note num" id="scanStatus">boot…</span>
+        <button class="toggle" id="weightToggle" title="bars weighted by dollars, or by how many traders die there">BARS: $</button>
+        <button class="toggle" id="sizeToggle" title="filter mapped positions by size">SIZE: ALL</button>
+        <button class="toggle" id="pxToggle" title="how price is drawn over the map">PRICE: LINE</button>
+        <button class="toggle" id="tableToggle">TABLE</button>
+      </div>
+    </div>
+    <div id="ladderWrap"><canvas id="ladder"></canvas></div>
+    <div class="maplegend">chart = live price, last hours · bars right = $ that gets <b>force-closed</b> if price reaches that level · ◆ = one whale — hover anything, click a ◆ for the wallet · <b>drag</b> to pan · <b>swipe/scroll</b> to zoom · drag the price axis to stretch · <b>double-click</b> to recenter<span id="mapContext"></span></div>
+    <div id="ladderTable"></div>
+  </div>
+
+  <div class="card" id="venueCard">
+    <div class="cardhead"><h2 id="venueTitle">BTC · HYPERLIQUID vs LIGHTER</h2><span class="note">the two on-chain books · refreshes ~45s · funding annualized</span></div>
+    <div style="overflow-x:auto"><table id="venueTable"></table></div>
+  </div>
+  </div>
+
+  <div id="rightcol">
+    <div class="card">
+      <div class="cardhead"><h2>LIVE WIPES</h2><span class="note">all coins · on-chain venues</span>
+        <div class="right"><button class="toggle" id="feedScope">ALL COINS</button></div></div>
+      <div id="feedList"><div class="feedempty">waiting for liquidations…<br><span style="font-size:10px">quiet tape = nobody dying right now</span></div></div>
+    </div>
+
+    <div class="card">
+      <div class="cardhead"><h2>WHALE BIAS</h2><span class="note">accounts ≥$5M + named desks · all coins</span>
+        <div class="right"><span class="note num" id="biasDelta"></span></div></div>
+      <div class="splitwrap" style="border-top:none">
+        <div class="splitbar" style="height:18px"><i class="L" id="biasL" style="width:50%"></i><i class="S" id="biasS" style="width:50%"></i></div>
+        <div class="splitlabels"><span class="up num" id="biasLv">—</span><span class="down num" id="biasSv">—</span></div>
+      </div>
+      <div id="crowdList"></div>
+    </div>
+
+    <div class="card">
+      <div class="cardhead"><h2>HL TOTALS</h2><span class="note">all coins · every tracked wallet</span></div>
+      <div class="splitwrap" style="border-top:none">
+        <span class="microlabel">open right now — total long vs short</span>
+        <div class="splitbar"><i class="L" id="totL" style="width:50%"></i><i class="S" id="totS" style="width:50%"></i></div>
+        <div class="splitlabels"><span class="up num" id="totLv">—</span><span class="down num" id="totSv">—</span></div>
+        <div class="splitlabels"><span class="num microlabel" id="totLc"></span><span class="num microlabel" id="totSc"></span></div>
+        <span class="microlabel" style="display:block;margin-top:10px" id="flowTitle">newly opened while watching</span>
+        <div class="splitlabels"><span class="up num" id="flowL">—</span><span class="down num" id="flowS">—</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardhead"><h2 id="hlTitle">HYPERLIQUID · REAL POSITIONING</h2><span class="note" id="hlNote">tracked wallets, live</span></div>
+      <div class="tilegrid" id="hlTiles"></div>
+      <div class="splitwrap">
+        <span class="microlabel">open notional — long vs short (<span id="splitCoin">BTC</span>, tracked)</span>
+        <div class="splitbar"><i class="L" id="splitL" style="width:50%"></i><i class="S" id="splitS" style="width:50%"></i></div>
+        <div class="splitlabels"><span class="up num" id="splitLv">—</span><span class="down num" id="splitSv">—</span></div>
+        <span class="microlabel" style="display:block;margin-top:10px">by wallet count — the majority vote</span>
+        <div class="splitbar" style="height:9px"><i class="L" id="cntL" style="width:50%"></i><i class="S" id="cntS" style="width:50%"></i></div>
+        <div class="splitlabels"><span class="up num" id="cntLv">—</span><span class="down num" id="cntSv">—</span></div>
+      </div>
+      <div id="namedList"></div>
+      <div id="watchbox">
+        <div class="microlabel">your watchlist — one per line: 0xaddress Name (saved locally)</div>
+        <textarea id="watchText" placeholder="0x1234…abcd Wintermute?"></textarea>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  On-chain venues only, by design: <b>Hyperliquid</b> and <b>Lighter</b> publish every position and every liquidation is verifiable
+  (HL wipes detected from position tracking, marked ◆). CEX liquidation feeds (Binance, Bybit, OKX, Gate, Aster) are sampled or
+  unverifiable, so none are connected — no estimated or partial data appears anywhere on this page.
+  Map = real Hyperliquid positions; CEX books are private, so no one can build this map for them — that's the edge.
+  Not financial advice. Built for Joey.
+</footer>
+
+<div id="tooltip"></div>
+
+<script>
+"use strict";
+/* ================= config ================= */
+// REGISTRY is built dynamically at boot from Hyperliquid's universe: every perp
+// with >$1M daily volume (plus pinned favorites). The seed below only covers the
+// few seconds before that fetch lands, or a total API failure.
+let REGISTRY = [
+ {base:'BTC',  hl:'BTC',  hlM:1, lighter:'BTC', cat:'MAJORS', vol:0},
+ {base:'ETH',  hl:'ETH',  hlM:1, lighter:'ETH', cat:'MAJORS', vol:0},
+ {base:'SOL',  hl:'SOL',  hlM:1, lighter:'SOL', cat:'MAJORS', vol:0},
+ {base:'HYPE', hl:'HYPE', hlM:1, lighter:'HYPE', cat:'HL ECOSYSTEM', vol:0},
+ {base:'CASHCAT', hl:'CASHCAT', hlM:1, lighter:'CASHCAT', cat:'MEMES', vol:0},
+];
+const PINNED=['CASHCAT'];
+const CATS={};
+[['MAJORS','BTC ETH SOL BNB XRP ADA AVAX LINK LTC DOT TRX BCH TON SUI APT NEAR ATOM XLM HBAR ETC FIL ICP OP ARB POL MATIC TIA SEI INJ ALGO VET NEO EGLD STX IMX GRT KAS ZEC XMR'],
+ ['HL ECOSYSTEM','HYPE PURR'],
+ ['MEMES','DOGE SHIB PEPE BONK WIF FLOKI MEW POPCAT NEIRO PNUT GOAT MOODENG TRUMP MELANIA FARTCOIN SPX TURBO BRETT DOGS CHILLGUY PENGU CASHCAT BOME MEME SLERF MOG BABYDOGE'],
+ ['AI','FET TAO RENDER WLD AI16Z VIRTUAL AIXBT ARC IO GRASS PROMPT ZEREBRO GRIFFAIN'],
+ ['DEFI','UNI AAVE CRV LDO MKR SNX COMP SUSHI JUP RAY PENDLE ENA ONDO MORPHO DYDX GMX EIGEN ETHFI JTO CAKE 1INCH'],
+].forEach(([cat,names])=>names.split(' ').forEach(n=>CATS[n]=cat));
+const catOf=b=>CATS[b]||'OTHER';
+
+function buildRegistry(universe,ctxs,lighterObs){
+  const out=[];
+  universe.forEach((u,i)=>{ if(u.isDelisted)return;
+    const ctx=ctxs[i]; if(!ctx)return;
+    const vol=parseFloat(ctx.dayNtlVlm)||0;
+    if(vol<1e6&&!PINNED.includes(u.name))return;
+    const k=/^k[A-Z0-9]/.test(u.name);
+    const base=k?u.name.slice(1):u.name;
+    const r={base, hl:u.name, hlM:k?1000:1, vol, cat:catOf(base)};
+    const lob=lighterObs.find(o=>o.symbol===base)||lighterObs.find(o=>o.symbol==='1000'+base);
+    if(lob){ r.lighter=lob.symbol; r.lighterId=lob.market_id; if(lob.symbol.startsWith('1000'))r.lighterM=1000; }
+    out.push(r);
+  });
+  out.sort((a,b)=>b.vol-a.vol);
+  return out;
+}
+// on-chain venues only, by design: Hyperliquid + Lighter publish real positions
+// and their liquidations are verifiable on-chain. Every CEX feed (Binance, Bybit,
+// OKX, Gate, Aster) is either sampled or unverifiable, so none are connected.
+const VENUES = [
+ {id:'hyperliquid', label:'HYPERLIQ', q:'on-chain', g:'real'},
+ {id:'lighter', label:'LIGHTER',q:'on-chain', g:'real'},
+];
+const HL_INFO='https://api.hyperliquid.xyz/info';
+const SWEEP_MS=130, WATCH_RECHECK_MS=25000, TRACK_CAP=4000;
+
+/* ================= state ================= */
+const S={
+ coin:'BTC', zoom:0.05, centerMul:1, timeShift:0, feedAll:true, tableView:false,
+ priceMode:localStorage.getItem('wipeout-pxmode')||'line',   // 'line' | 'candles' | 'off'
+ mapWeight:'usd', sizeFilter:'all',                          // bars by $ or by trader count; size band filter
+ venueOn:new Set(VENUES.filter(v=>v.g==='real').map(v=>v.id)), // complete/on-chain data only by default
+ feedStatus:{},                       // venue -> {st:'ok'|'warn'|'err', msg}
+ events:[],                           // newest first {ts,venue,coin,side,px,usd,kind}
+ bins:new Map(),                      // 30s bin -> venue -> {long,short}
+ sessV:{},                            // venue -> {n,usd,max}
+ candles:[],                          // selected coin, 1m, normalized
+ marks:{},                            // base -> normalized mark px (per 1 coin)
+ hl:{ queue:[], qset:new Set(), accounts:new Map(), labels:new Map(),
+      meta:null, ctx:{}, scanned:0, lbState:'boot', detected:0,
+      flow:{oL:0,oS:0,oLu:0,oSu:0,since:Date.now()} },
+ stats:{},                            // venue -> row data for selected coin
+ flashes:[],                          // {px,side,ts} on selected coin
+ hover:null,
+ watched:new Set(),                   // 30s bins during which this browser was actually listening
+};
+const lighterM={};                 // symbol -> price multiplier (e.g. 1000PEPE)
+const revMap={lighter:{}};         // lighter symbol + market_id -> registry row
+function buildRevMaps(){
+  revMap.lighter={};
+  for(const p in lighterM)delete lighterM[p];
+  for(const r of REGISTRY){
+    if(r.lighter){revMap.lighter[r.lighter]=r; if(r.lighterM) lighterM[r.lighter]=r.lighterM;}
+    if(r.lighterId!=null) revMap.lighter[r.lighterId]=r;
+  }
+}
+buildRevMaps();
+const reg=b=>REGISTRY.find(r=>r.base===b);
+
+/* ================= utils ================= */
+const $=id=>document.getElementById(id);
+const fmtUsd=v=>{ if(v==null||!isFinite(v))return '—'; const a=Math.abs(v), sg=v<0?'-$':'$';
+  if(a>=1e9)return sg+(a/1e9).toFixed(2)+'B'; if(a>=1e6)return sg+(a/1e6).toFixed(a>=1e7?0:1)+'M';
+  if(a>=1e3)return sg+(a/1e3).toFixed(a>=1e5?0:1)+'K'; return sg+a.toFixed(0); };
+const fmtPx=v=>{ if(v==null||!isFinite(v))return '—'; if(v>=1000)return v.toLocaleString('en-US',{maximumFractionDigits:1});
+  if(v>=10)return v.toFixed(2); if(v>=0.1)return v.toFixed(4); return v.toPrecision(4); };
+const fmtT=ts=>new Date(ts).toTimeString().slice(0,8);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const short=a=>a.slice(0,6)+'…'+a.slice(-4);
+const tsNorm=v=>{v=+v; if(!v)return Date.now(); if(v>1e11)return v; if(v>1e8)return v*1000; return Date.now();};
+const fmtDur=ms=>{ const mn=Math.round(ms/60000);
+  if(mn<1)return '<1m'; if(mn<60)return mn+'m';
+  if(mn<1440)return Math.floor(mn/60)+'h '+(mn%60)+'m'; return Math.floor(mn/1440)+'d '+Math.floor((mn%1440)/60)+'h'; };
+// nothing heavy is stored client-side: history and the wallet universe live on
+// the server (/api/snap); the browser keeps only small UI prefs
+try{ localStorage.removeItem('wipeout-hist'); localStorage.removeItem('wipeout-bias');
+  indexedDB.deleteDatabase('wipeout'); }catch(e){}
+
+/* ================= venue status ================= */
+function setStatus(venue,st,msg){ S.feedStatus[venue]={st,msg}; renderVenueChips(); }
+
+/* ================= event ingest ================= */
+function ingest(ev){ // {ts,venue,coin,side,px,usd,kind} — everything is ingested; venue filter applies at render
+  if(!ev.usd||!isFinite(ev.usd)||ev.usd<=0) return;
+  S.events.unshift(ev); if(S.events.length>300)S.events.pop();
+  const sv=S.sessV[ev.venue]||(S.sessV[ev.venue]={n:0,usd:0,max:null});
+  sv.n++; sv.usd+=ev.usd; if(!sv.max||ev.usd>sv.max.usd)sv.max=ev;
+  const bin=Math.floor(ev.ts/30000); const b=S.bins.get(bin)||{}; S.bins.set(bin,b);
+  const vb=b[ev.venue]||(b[ev.venue]={long:0,short:0}); vb[ev.side]+=ev.usd;
+  if(S.bins.size>2900){ const cut=Math.floor(Date.now()/30000)-2880; // keep 24h of history
+    for(const k of S.bins.keys()) if(k<cut)S.bins.delete(k); }
+  if(ev.coin===S.coin && ev.px) S.flashes.push({px:ev.px,side:ev.side,ts:ev.ts});
+  // only touch the visible list when this event would actually appear in it
+  if(S.venueOn.has(ev.venue)&&(S.feedAll||ev.coin===S.coin)) scheduleFeed();
+  renderSess(); drawPulse();
+}
+
+/* ================= WS helper ================= */
+function connect({name,url,onopen,onmsg,protocols}){
+  let ws, dead=false, delay=1500;
+  const open=()=>{
+    setStatus(name,'warn','connecting');
+    try{ws=new WebSocket(url,protocols);}catch(e){setStatus(name,'err','failed');return;}
+    ws.onopen=()=>{delay=1500;setStatus(name,'ok','live');onopen&&onopen(ws);};
+    ws.onmessage=e=>{try{onmsg(e,ws);}catch(err){}};
+    ws.onclose=()=>{ if(dead)return;
+      setStatus(name,'warn','reconnecting'); setTimeout(open,delay); delay=Math.min(delay*1.7,30000); };
+    ws.onerror=()=>{};
+  };
+  open();
+  return {send:m=>{try{ws&&ws.readyState===1&&ws.send(m)}catch(e){}}, kill:()=>{dead=true;try{ws.close()}catch(e){}}, raw:()=>ws};
+}
+
+/* ================= CEX feeds ================= */
+// No CEX feeds, on purpose: Binance/OKX/Gate/Aster push sampled snapshots
+// (at most one event per symbol per interval) and even Bybit's "complete"
+// stream can't be independently verified. This tape is on-chain data only.
+
+// Lighter — on-chain; trade stream carries type: 'liquidation' | 'deleverage'
+function startLighter(){
+  const ids=REGISTRY.filter(r=>r.lighterId!=null).map(r=>r.lighterId);
+  if(!ids.length){ setStatus('lighter','err','no markets matched'); return; }
+  connect({name:'lighter',url:'wss://mainnet.zklighter.elliot.ai/stream',
+   onopen:ws=>ids.forEach(i=>ws.send(JSON.stringify({type:'subscribe',channel:'trade/'+i}))),
+   onmsg:e=>{ const d=JSON.parse(e.data); if(!d.trades)return;
+     for(const t of d.trades){ if(t.type==='trade'||!t.type)continue;
+       const r=revMap.lighter[t.market_id]; if(!r)continue; const m=r.lighterM||1;
+       const px=parseFloat(t.price)/m, usd=parseFloat(t.usd_amount)||parseFloat(t.size)*parseFloat(t.price);
+       // liquidation close of a long is a taker sell (taker on ask side);
+       // the liquidated account is the taker, whose entry basis rides on the trade
+       const takerIsBid=t.is_maker_ask===true; const side=takerIsBid?'short':'long';
+       const sb=parseFloat(t.taker_position_size_before), eq=parseFloat(t.taker_entry_quote_before);
+       const entry=(sb&&isFinite(eq)&&Math.abs(sb)>0)?Math.abs(eq/sb)/m:null;
+       ingest({ts:t.timestamp>1e12?+t.timestamp:t.timestamp*1000,venue:'lighter',coin:r.base,side,px,usd,
+         kind:t.type==='deleverage'?'ADL':'on-chain', entry:entry&&isFinite(entry)?entry:null}); } }});
+}
+
+/* ================= Hyperliquid engine ================= */
+async function hlInfo(body){ const r=await fetch(HL_INFO,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.status===429)throw{rate:true}; return r.json(); }
+
+// --- labels: leaderboard displayNames + hypurrscan aliases + user watchlist
+fetch('https://api.hypurrscan.io/globalAliases').then(r=>r.json()).then(a=>{
+  for(const [addr,name] of Object.entries(a)) S.hl.labels.set(addr.toLowerCase(),name); applyWatchlist(); }).catch(()=>{});
+function applyWatchlist(){ const txt=localStorage.getItem('wipeout-watch')||'';
+  $('watchText').value=txt;
+  for(const line of txt.split('\n')){ const m=line.trim().match(/^(0x[0-9a-fA-F]{40})\s+(.+)$/);
+    if(m){ S.hl.labels.set(m[1].toLowerCase(),m[2].trim());
+      harvest(m[1]); } } } // watchlist wallets get scanned with priority, size doesn't matter
+$('watchText').addEventListener('change',()=>{ localStorage.setItem('wipeout-watch',$('watchText').value); applyWatchlist(); renderHL(); });
+
+// --- leaderboard -> address universe: hot ring (whales + active) swept fast,
+// cold ring (the other ~38k wallets) swept in the background for breadth
+function applyUniverse(hot,cold){
+  seedQueue(hot);
+  S.hl.cold=cold.map(c=>({a:c.a,skip:0}));
+  for(const c of cold) if(c.n)S.hl.labels.set(c.a,c.n);
+  S.hl.universeN=hot.length+cold.length;
+}
+async function loadLeaderboard(){ // fallback only, when the server snapshot is unavailable
+  S.hl.lbState='downloading'; renderScan();
+  try{
+    const resp=await fetch('https://stats-data.hyperliquid.xyz/Mainnet/leaderboard');
+    const rd=resp.body.getReader(); const chunks=[]; let got=0;
+    for(;;){ const {done,value}=await rd.read(); if(done)break;
+      chunks.push(value); got+=value.length; S.hl.lbProgress=got;
+      if(!(chunks.length%25))renderScan(); }
+    const txt=new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+    S.hl.lbState='parsing'; renderScan();
+    const rows=JSON.parse(txt).leaderboardRows;
+    const slim=rows.map(r=>{ const wk=Object.fromEntries(r.windowPerformances||[]).week||{};
+        return {a:r.ethAddress.toLowerCase(),v:parseFloat(r.accountValue)||0,vl:parseFloat(wk.vlm)||0,n:r.displayName||null}; });
+    slim.sort((x,y)=>y.v-x.v);
+    const hotSet=new Set(slim.slice(0,3200).map(r=>r.a));
+    for(const r of slim.slice().sort((x,y)=>y.vl-x.vl).slice(0,800)) hotSet.add(r.a);
+    const hot=[],cold=[];
+    for(const r of slim){ if(r.n)S.hl.labels.set(r.a,r.n);
+      (hotSet.has(r.a)?hot:cold).push({a:r.a,v:r.v,n:r.n}); }
+    applyUniverse(hot,cold); S.hl.lbState='ok';
+  }catch(e){ S.hl.lbState='failed'; }
+  renderScan();
+}
+function seedQueue(slim){ for(const r of slim.slice(0,TRACK_CAP)){ if(!S.hl.qset.has(r.a)){S.hl.qset.add(r.a);S.hl.queue.push(r.a);} if(r.n)S.hl.labels.set(r.a,r.n); } }
+
+// server snapshot: instant map + full liq history, so a fresh visitor starts hot
+async function loadSnap(){
+  try{
+    const s=await (await fetch('/api/snap')).json();
+    if(!s||!s.accounts)throw 0;
+    for(const [a,acc] of Object.entries(s.accounts)){
+      if(S.hl.accounts.has(a))continue; // live scans beat the snapshot
+      S.hl.accounts.set(a,{ts:s.ts,av:acc[0],positions:acc[1].map(
+        ([coin,szi,entry,liq,val,lev,cx,upnl,ot])=>({coin,szi,entry,liq:liq||null,val,lev,cross:!!cx,upnl,openedTs:ot||null}))});
+    }
+    for(const [b,v] of Object.entries(s.bins||{})) if(!S.bins.has(+b))S.bins.set(+b,v);
+    for(const w of s.watched||[])S.watched.add(w);
+    if(s.biasHist&&s.biasHist.length&&!biasHist.length)
+      biasHist=s.biasHist.map(x=>({ts:x.t,l:x.l,s:x.s}));
+    for(const [a,n] of Object.entries(s.names||{})) if(!S.hl.labels.has(a))S.hl.labels.set(a,n);
+    seedQueue((s.hot||[]).map(a=>({a})));
+    S.hl.universeN=s.universeN||0; S.hl.lbState='server';
+    renderScan(); renderHL(); renderBias(); renderTotals(); renderWindows(); drawPulse(); drawLadder(); rebuildWatch();
+    return true;
+  }catch(e){ return false; }
+}
+// every open tab pings the collector so history keeps recording while anyone watches
+setInterval(()=>{ fetch('/api/collect',{keepalive:true}).catch(()=>{}); },60000);
+function harvest(addr){ addr=addr.toLowerCase(); if(S.hl.qset.has(addr))return;
+  if(S.hl.qset.size>TRACK_CAP+2000)return; S.hl.qset.add(addr); S.hl.queue.unshift(addr); }
+
+// --- sweep loop: ~460 wallets/min (weight 2 each, budget 1200/min)
+// tick clock lives in a Worker: page timers are clamped to 1Hz in hidden tabs, workers are not
+let watchCursor=[], paused=0, tickN=0;
+const tickWorker=new Worker(URL.createObjectURL(new Blob(
+  [`setInterval(()=>postMessage(1),${SWEEP_MS})`],{type:'text/javascript'})));
+tickWorker.onmessage=async ()=>{
+  if(paused>Date.now())return;
+  tickN++;
+  let addr=null, coldEntry=null;
+  const w=watchCursor.shift();
+  if(w && (Date.now()-(S.hl.accounts.get(w)?.ts||0))>WATCH_RECHECK_MS) addr=w;
+  else if(tickN%3===0&&(S.hl.cold||[]).length){ // every 3rd tick: breadth pass over the long tail
+    for(let tries=0;tries<10&&!coldEntry;tries++){ const cand=S.hl.cold.shift(); if(!cand)break;
+      S.hl.cold.push(cand);
+      if(cand.skip>0){cand.skip--;continue;} coldEntry=cand; }
+    if(coldEntry)addr=coldEntry.a;
+  }
+  if(!addr){ addr=S.hl.queue.shift(); if(addr)S.hl.queue.push(addr); } // rotate hot ring
+  if(!addr)return;
+  try{
+    const j=await hlInfo({type:'clearinghouseState',user:addr});
+    const prev=S.hl.accounts.get(addr);
+    const positions=(j.assetPositions||[]).map(p=>p.position).map(p=>({
+      coin:p.coin, szi:parseFloat(p.szi), entry:parseFloat(p.entryPx), liq:p.liquidationPx?parseFloat(p.liquidationPx):null,
+      val:Math.abs(parseFloat(p.positionValue)), lev:p.leverage?.value, cross:p.leverage?.type==='cross', upnl:parseFloat(p.unrealizedPnl)||0 }));
+    // liquidation detection: a previously-near-liq position vanished
+    if(prev) for(const pp of prev.positions){
+      if(!pp.liq)continue;
+      const still=positions.find(x=>x.coin===pp.coin && Math.sign(x.szi)===Math.sign(pp.szi));
+      const r=REGISTRY.find(r=>r.hl===pp.coin); const mark=r?S.marks[r.base]*(r.hlM||1):null;
+      if(!still && mark && Math.abs(mark-pp.liq)/mark<0.015){
+        S.hl.detected++;
+        const hm=r?r.hlM||1:1;
+        ingest({ts:Date.now(),venue:'hyperliquid',coin:r?r.base:pp.coin,side:pp.szi>0?'long':'short',
+          px:pp.liq/hm,usd:pp.val,kind:'detected',
+          entry:pp.entry/hm, heldMs:pp.openedTs?Date.now()-pp.openedTs:null});
+      }
+    }
+    // flow + position age: match against the previous scan of this wallet.
+    // a new position stamps openedTs; a surviving one inherits it.
+    if(prev) for(const np of positions){
+      const was=prev.positions.find(x=>x.coin===np.coin&&Math.sign(x.szi)===Math.sign(np.szi));
+      if(!was){ np.openedTs=Date.now();
+        const f=S.hl.flow; if(np.szi>0){f.oL++;f.oLu+=np.val;} else {f.oS++;f.oSu+=np.val;} }
+      else np.openedTs=was.openedTs||null; }
+    const av=parseFloat(j.marginSummary?.accountValue)||0;
+    S.hl.accounts.set(addr,{ts:Date.now(),av,positions});
+    // thin the cold ring toward wallets that actually hold positions:
+    // empty dust gets revisited rarely, empty-but-funded occasionally, holders every pass
+    if(coldEntry) coldEntry.skip = positions.length?0 : (av<1000?60:4);
+    S.hl.scanned++;
+    renderScan();                              // live counter, every scan
+    if(S.hl.scanned%40===0)rebuildWatch();
+  }catch(e){ if(e&&e.rate){paused=Date.now()+45000; setStatus('hyperliquid','warn','rate-limited, backing off');} }
+};
+
+function rebuildWatch(){ // positions within 5% of liquidation get re-checked fast — nearest death first, capped
+  const w=[];
+  for(const [addr,acc] of S.hl.accounts){
+    let best=1;
+    for(const p of acc.positions){ if(!p.liq)continue;
+      const r=REGISTRY.find(r=>r.hl===p.coin); if(!r)continue;
+      const mark=S.marks[r.base]*(r.hlM||1); if(!mark)continue;
+      const d=Math.abs(mark-p.liq)/mark; if(d<best)best=d; }
+    if(best<0.05)w.push([addr,best]); }
+  w.sort((a,b)=>a[1]-b[1]);
+  watchCursor=w.slice(0,150).map(x=>x[0]);
+}
+
+// --- market data: allMids (all marks, 1/s), activeAssetCtx (selected coin OI/funding), trades (harvest + instant liq match)
+let hlWS=null;
+function hlConnect(){
+  hlWS=connect({name:'hyperliquid',url:'wss://api.hyperliquid.xyz/ws',
+   onopen:ws=>{
+     ws.send(JSON.stringify({method:'subscribe',subscription:{type:'allMids'}}));
+     hlSubCoin(ws,S.coin);
+   },
+   onmsg:e=>{ const d=JSON.parse(e.data);
+     if(d.channel==='allMids'){ const mids=d.data?.mids||{};
+       for(const r of REGISTRY){ const v=mids[r.hl]; if(v)S.marks[r.base]=parseFloat(v)/(r.hlM||1); }
+       return; }
+     if(d.channel==='activeAssetCtx'){ const c=d.data; if(!c)return; const r=REGISTRY.find(r=>r.hl===c.coin);
+       if(r){ S.hl.ctx[r.base]={...S.hl.ctx[r.base], // keep prevDay from the meta poll
+           funding:parseFloat(c.ctx.funding),oi:parseFloat(c.ctx.openInterest),mark:parseFloat(c.ctx.markPx)/(r.hlM||1)};
+         if(r.base===S.coin)renderStats(); } return; }
+     if(d.channel==='trades'){ for(const t of d.data||[]){
+         (t.users||[]).forEach(harvest);
+         // instant detection: someone on our near-liq watch trading at ~their liq price
+         const r=REGISTRY.find(r=>r.hl===t.coin); if(!r)continue;
+       } return; }
+   }});
+}
+function hlSubCoin(ws,base){ const r=reg(base); if(!r)return;
+  ws.send(JSON.stringify({method:'subscribe',subscription:{type:'activeAssetCtx',coin:r.hl}}));
+  ws.send(JSON.stringify({method:'subscribe',subscription:{type:'trades',coin:r.hl}})); }
+function hlResub(oldBase){ const ws=hlWS&&hlWS.raw(); if(!ws||ws.readyState!==1)return; const r=reg(oldBase);
+  if(r){ ws.send(JSON.stringify({method:'unsubscribe',subscription:{type:'activeAssetCtx',coin:r.hl}}));
+         ws.send(JSON.stringify({method:'unsubscribe',subscription:{type:'trades',coin:r.hl}})); }
+  hlSubCoin(ws,S.coin); }
+
+// metaAndAssetCtxs: OI + funding + prev-day px + 24h volume for all coins
+function applyMeta([meta,ctxs]){
+  meta.universe.forEach((u,i)=>{ const r=REGISTRY.find(r=>r.hl===u.name); if(!r)return; const c=ctxs[i];
+    r.vol=parseFloat(c.dayNtlVlm)||r.vol||0;
+    S.hl.ctx[r.base]={funding:parseFloat(c.funding),oi:parseFloat(c.openInterest),
+      mark:parseFloat(c.markPx)/(r.hlM||1),prevDay:parseFloat(c.prevDayPx)/(r.hlM||1)};
+    if(!S.marks[r.base])S.marks[r.base]=parseFloat(c.markPx)/(r.hlM||1); });
+}
+async function pollMeta(){ try{ applyMeta(await hlInfo({type:'metaAndAssetCtxs'})); }catch(e){} }
+setInterval(pollMeta,25000);
+
+// boot: build the coin universe from Hyperliquid (>$1M 24h volume), match
+// Lighter markets, then bring the feeds up
+async function initRegistry(){
+  let metaCtx=null;
+  try{
+    const [mc,obsJ]=await Promise.all([
+      hlInfo({type:'metaAndAssetCtxs'}),
+      fetch('https://mainnet.zklighter.elliot.ai/api/v1/orderBooks').then(r=>r.json()).catch(()=>null),
+    ]);
+    metaCtx=mc;
+    const obs=obsJ?.order_books||[];
+    const built=buildRegistry(mc[0].universe,mc[1],obs);
+    if(built.length>5){ REGISTRY=built; buildRevMaps(); }
+  }catch(e){}
+  if(metaCtx)applyMeta(metaCtx);
+  renderCoinDropdown('');
+  startLighter();
+}
+
+// price history for the chart pane: 1m candles, refreshed every 60s, last candle nudged live
+async function fetchCandles(){ const r=reg(S.coin); if(!r)return; const base=S.coin;
+  try{ const end=Date.now();
+    const j=await hlInfo({type:'candleSnapshot',req:{coin:r.hl,interval:'1m',startTime:end-24*3600e3,endTime:end}});
+    if(S.coin!==base)return;
+    const m=r.hlM||1;
+    const fresh=(j||[]).map(c=>({t:c.t,o:+c.o/m,h:+c.h/m,l:+c.l/m,c:+c.c/m}));
+    // keep any older candles the user panned into; splice the fresh window on top
+    if(fresh.length&&S.candles.length&&S.candles[0].t<fresh[0].t)
+      S.candles=[...S.candles.filter(c=>c.t<fresh[0].t),...fresh];
+    else S.candles=fresh;
+  }catch(e){} }
+setInterval(fetchCandles,60000);
+let backfilling=false;
+async function backfillCandles(){ if(backfilling||!S.candles.length)return; backfilling=true;
+  const r=reg(S.coin); const base=S.coin;
+  try{ const first=S.candles[0].t;
+    const j=await hlInfo({type:'candleSnapshot',req:{coin:r.hl,interval:'1m',startTime:first-12*3600e3,endTime:first}});
+    if(S.coin!==base)return;
+    const m=r.hlM||1;
+    const older=(j||[]).map(c=>({t:c.t,o:+c.o/m,h:+c.h/m,l:+c.l/m,c:+c.c/m})).filter(c=>c.t<first);
+    if(older.length)S.candles=[...older,...S.candles];
+  }catch(e){} finally{ backfilling=false; } }
+function nudgeCandle(){ const mark=S.marks[S.coin]; if(!mark||!S.candles.length)return;
+  const last=S.candles[S.candles.length-1];
+  if(Date.now()-last.t>120000){ S.candles.push({t:Math.floor(Date.now()/60000)*60000,o:mark,h:mark,l:mark,c:mark}); }
+  else { last.c=mark; last.h=Math.max(last.h,mark); last.l=Math.min(last.l,mark); } }
+
+function renderPrice(){ const mark=S.marks[S.coin]; const ctx=S.hl.ctx[S.coin];
+  $('livePx').textContent=mark?('$'+fmtPx(mark)):'—';
+  if(ctx&&ctx.prevDay&&mark){ const d=(mark/ctx.prevDay-1)*100;
+    const el=$('px24'); el.textContent=(d>=0?'+':'')+d.toFixed(2)+'% 24h';
+    el.className='num '+(d>=0?'up':'down'); } }
+
+/* ================= venue stats (selected coin) ================= */
+async function pollStats(){
+  const r=reg(S.coin); if(!r)return; const out={};
+  const jf=u=>fetch(u).then(x=>x.json()).catch(()=>null);
+  // HL from ctx cache; oi is in native units (e.g. kPEPE); native mark = normalized mark * hlM
+  const c=S.hl.ctx[S.coin];
+  if(c) out.hyperliquid={ mark:c.mark, oiUsd:c.oi*(c.mark*(r.hlM||1)), fundApr:c.funding*24*365*100 };
+  if(r.lighterId!=null){
+    const [det,fr]=await Promise.all([
+      jf(`https://mainnet.zklighter.elliot.ai/api/v1/orderBookDetails?market_id=${r.lighterId}`),
+      jf(`https://mainnet.zklighter.elliot.ai/api/v1/funding-rates?market_id=${r.lighterId}`)]);
+    const o=det?.order_book_details?.[0];
+    const lf=(fr?.funding_rates||[]).find(x=>x.exchange==='lighter'&&x.market_id===r.lighterId);
+    const m=r.lighterM||1;
+    if(o) out.lighter={ mark:parseFloat(o.mark_price)/m,
+      oiUsd:parseFloat(o.open_interest)*parseFloat(o.mark_price),
+      fundApr:lf?parseFloat(lf.rate)*3*365*100:null };   // lighter publishes 8h-normalized rates
+  }
+  S.stats=out; renderStats();
+}
+setInterval(pollStats,45000);
+
+/* ================= aggregates for map ================= */
+function coinPositions(base){ const r=reg(base); if(!r)return [];
+  const out=[];
+  for(const [addr,acc] of S.hl.accounts) for(const p of acc.positions){
+    if(p.coin!==r.hl||!p.liq)continue;
+    out.push({addr, side:p.szi>0?'long':'short', liq:p.liq/(r.hlM||1), entry:p.entry/(r.hlM||1),
+      val:p.val, lev:p.lev, cross:p.cross, upnl:p.upnl, name:S.hl.labels.get(addr)});
+  }
+  return out;
+}
+function coinStats(base){ const r=reg(base); const mark=S.marks[base];
+  let n=0,notional=0,prof=0,under=0,risk2=0,risk5=0,long=0,shortv=0,noliq=0,countL=0,countS=0;
+  if(!r||!mark)return null;
+  for(const [,acc] of S.hl.accounts) for(const p of acc.positions){
+    if(p.coin!==r.hl)continue; n++; notional+=p.val;
+    if(p.upnl>=0)prof++; else under++;
+    if(p.szi>0){long+=p.val;countL++;} else {shortv+=p.val;countS++;}
+    if(p.liq){ const d=Math.abs(mark-(p.liq/(r.hlM||1)))/mark;
+      if(d<0.02)risk2+=p.val; if(d<0.05)risk5+=p.val; } else noliq++;
+  }
+  return {n,notional,prof,under,risk2,risk5,long,short:shortv,noliq,countL,countS};
+}
+
+/* ================= renderers ================= */
+function renderSess(){ // largest single covers only the venues currently enabled
+  let max=null;
+  for(const [v,sv] of Object.entries(S.sessV)){ if(!S.venueOn.has(v))continue;
+    if(sv.max&&(!max||sv.max.usd>max.usd))max=sv.max; }
+  $('sessMax').innerHTML=max?`<span class="${max.side==='long'?'up':'down'}">${fmtUsd(max.usd)}</span> <span class="microlabel">${max.coin}·${max.venue}</span>`:'—';
+  scheduleWindows(); }
+
+/* ---- trailing liquidation totals (persisted across refreshes, per-browser) ---- */
+const WINDOWS=[['5m',5],['30m',30],['1h',60],['4h',240],['24h',1440]];
+function windowTotals(mins){
+  const now=Math.floor(Date.now()/30000), from=now-mins*2;
+  let long=0,short=0;
+  for(const [bin,b] of S.bins){ if(bin<from||bin>now)continue;
+    const s=binSum(b); long+=s.long; short+=s.short; }
+  let watched=0; for(const w of S.watched) if(w>=from&&w<=now)watched++;
+  return {long,short,cov:Math.min(1,watched/(mins*2))};
+}
+let winTimer=null;
+function scheduleWindows(){ if(winTimer)return; winTimer=setTimeout(()=>{winTimer=null;renderWindows();},1000); }
+function renderWindows(){
+  $('liqWindows').innerHTML=WINDOWS.map(([lb,mins])=>{
+    const t=windowTotals(mins); const tot=t.long+t.short;
+    const cov=t.cov<0.95?` · ${Math.max(1,Math.round(t.cov*100))}% seen`:'';
+    return `<div class="tile" title="liquidations witnessed in the last ${lb} (on-chain venues; only counts time this browser was watching)">
+      <div class="microlabel">wiped ${lb}${cov}</div>
+      <div class="v num">${tot?fmtUsd(tot):'—'}</div>
+      <div class="microlabel num sub2"><span class="up">${fmtUsd(t.long)} L</span> · <span class="down">${fmtUsd(t.short)} S</span></div></div>`;
+  }).join('');
+}
+// heartbeat: mark which 30s slices this browser actually listened through
+// (history itself lives server-side and is seeded from /api/snap at boot)
+setInterval(()=>{ S.watched.add(Math.floor(Date.now()/30000)); },15000);
+S.watched.add(Math.floor(Date.now()/30000));
+
+let feedTimer=null;
+function scheduleFeed(){ if(feedTimer)return; feedTimer=setTimeout(()=>{feedTimer=null;renderFeed();},400); }
+function renderFeed(){
+  const list=$('feedList');
+  const evs=S.events.filter(e=>S.venueOn.has(e.venue)&&(S.feedAll||e.coin===S.coin))
+    .slice(0,120).sort((a,b)=>b.ts-a.ts).slice(0,80);
+  if(!evs.length){ list.innerHTML='<div class="feedempty">waiting for liquidations…<br><span style="font-size:10px">quiet tape = nobody dying right now</span></div>'; return; }
+  list.innerHTML=evs.map(e=>{
+    const big=e.usd>=250000;
+    const fresh=Date.now()-e.ts<4000;
+    const v=VENUES.find(v=>v.id===e.venue);
+    const sub=e.entry?`<span class="feedsub num">entry ${fmtPx(e.entry)} → wiped ${fmtPx(e.px)}${e.heldMs?` · open ${fmtDur(e.heldMs)}`:''}</span>`:'';
+    return `<div class="feedrow${big?' big':''}${fresh?' fresh':''}">
+      <span class="t num">${fmtT(e.ts)}</span>
+      <span class="vbadge">${v?v.label:e.venue}${e.kind==='detected'?' ◆':''}</span>
+      <span class="coin">${e.coin}</span>
+      <span class="sidetag ${e.side}">${e.side==='long'?'LONG WIPED':'SHORT WIPED'}</span>
+      <span class="usd num ${e.side==='long'?'up':'down'}">${fmtUsd(e.usd)}</span>
+      <span class="px num">@ ${fmtPx(e.px)}</span>${sub}</div>`;
+  }).join('');
+}
+
+function renderScan(){
+  const el=$('scanStatus'); const st=S.hl.lbState;
+  if(st==='downloading')el.textContent=`fetching wallet universe… ${((S.hl.lbProgress||0)/1e6).toFixed(0)} MB / ~35 MB`;
+  else if(st==='parsing')el.textContent='parsing 42k wallets…';
+  else if(st==='failed')el.textContent='leaderboard unavailable — harvesting from tape';
+  else el.textContent=`${S.hl.scanned.toLocaleString()} scans · ${S.hl.accounts.size.toLocaleString()}/${(S.hl.universeN||0).toLocaleString()} wallets${st==='server'?' · server-synced':''}`;
+}
+
+function renderHL(){
+  const st=coinStats(S.coin);
+  const tiles=$('hlTiles');
+  if(!st||!st.n){ tiles.innerHTML=`<div class="cell" style="grid-column:1/-1"><div class="s">scanning wallets… map fills in over ~2 min</div></div>`; return; }
+  const profPct=st.n?Math.round(100*st.prof/(st.prof+st.under||1)):0;
+  tiles.innerHTML=`
+   <div class="cell"><div class="microlabel">tracked positions</div><div class="v num">${st.n.toLocaleString()}</div><div class="s">${S.coin} · whales+active</div></div>
+   <div class="cell"><div class="microlabel">open notional</div><div class="v num">${fmtUsd(st.notional)}</div><div class="s">tracked wallets</div></div>
+   <div class="cell"><div class="microlabel">in profit</div><div class="v num ${profPct>=50?'up':'down'}">${profPct}%</div><div class="s">${st.under.toLocaleString()} underwater</div></div>
+   <div class="cell"><div class="microlabel">dies within 2%</div><div class="v num ${st.risk2>1e6?'warn':''}">${fmtUsd(st.risk2)}</div><div class="s">of current price</div></div>
+   <div class="cell"><div class="microlabel">dies within 5%</div><div class="v num ${st.risk5>5e6?'warn':''}">${fmtUsd(st.risk5)}</div><div class="s">the hunt zone</div></div>
+   <div class="cell"><div class="microlabel">wipes detected</div><div class="v num">${S.hl.detected}</div><div class="s">on-chain, session</div></div>`;
+  const tot=st.long+st.short;
+  if(tot){ $('splitL').style.width=(100*st.long/tot)+'%'; $('splitS').style.width=(100*st.short/tot)+'%';
+    $('splitLv').textContent=`LONG ${fmtUsd(st.long)} · ${(100*st.long/tot).toFixed(0)}%`;
+    $('splitSv').textContent=`${(100*st.short/tot).toFixed(0)}% · ${fmtUsd(st.short)} SHORT`; }
+  const ctot=st.countL+st.countS;
+  if(ctot){ $('cntL').style.width=(100*st.countL/ctot)+'%'; $('cntS').style.width=(100*st.countS/ctot)+'%';
+    $('cntLv').textContent=`${st.countL.toLocaleString()} LONGS · ${(100*st.countL/ctot).toFixed(0)}%`;
+    $('cntSv').textContent=`${(100*st.countS/ctot).toFixed(0)}% · ${st.countS.toLocaleString()} SHORTS`; }
+  $('splitCoin').textContent=S.coin;
+  // named players
+  const named=[];
+  for(const [addr,acc] of S.hl.accounts){ const nm=S.hl.labels.get(addr); if(!nm)continue;
+    for(const p of acc.positions){ const r=REGISTRY.find(r=>r.hl===p.coin); if(!r)continue;
+      named.push({nm,addr,coin:r.base,side:p.szi>0?'long':'short',val:p.val,liq:p.liq?p.liq/(r.hlM||1):null,lev:p.lev}); } }
+  named.sort((a,b)=>b.val-a.val);
+  $('namedList').innerHTML= named.length? `<div style="padding:8px 14px 2px" class="microlabel">named players with open positions</div>`+
+    named.slice(0,7).map(x=>{ const mark=S.marks[x.coin]; const d=x.liq&&mark?Math.abs(mark-x.liq)/mark*100:null;
+      return `<div class="namedrow"><span class="nm" title="${x.addr}">${x.nm}</span>
+        <span class="sidetag ${x.side}">${x.side.toUpperCase()}</span><span class="coin">${x.coin}</span>
+        <span class="pos num">${fmtUsd(x.val)}${x.lev?' · '+x.lev+'x':''}<br>${x.liq?'liq '+fmtPx(x.liq)+(d!=null?' ('+d.toFixed(1)+'%)':''):'no liq px'}</span></div>`; }).join('')
+   : `<div style="padding:10px 14px" class="microlabel">no named/tagged wallets with positions seen yet</div>`;
+}
+
+/* ---- whale bias (accounts >= $5M or named) ---- */
+const BIAS_MIN_AV=5e6;
+function computeBias(){
+  let L=0,Sh=0,n=0; const perCoin={};
+  for(const [addr,acc] of S.hl.accounts){
+    if(acc.av<BIAS_MIN_AV && !S.hl.labels.has(addr))continue;
+    if(!acc.positions.length)continue; n++;
+    for(const p of acc.positions){ const r=REGISTRY.find(r=>r.hl===p.coin);
+      const base=r?r.base:p.coin;
+      const pc=perCoin[base]||(perCoin[base]={L:0,S:0});
+      if(p.szi>0){L+=p.val;pc.L+=p.val;} else {Sh+=p.val;pc.S+=p.val;} } }
+  return {L,S:Sh,n,perCoin,ts:Date.now()};
+}
+let biasHist=[];   // in-memory; seeded from the server snapshot at boot
+setInterval(()=>{ const b=computeBias(); if(!(b.L+b.S))return;
+  biasHist.push({ts:b.ts,l:b.L,s:b.S});
+  while(biasHist.length&&Date.now()-biasHist[0].ts>24*3600e3)biasHist.shift();
+},120000);
+function renderBias(){
+  const b=computeBias(); const tot=b.L+b.S;
+  if(!tot){ $('biasLv').textContent='scanning…'; $('biasSv').textContent=''; $('crowdList').innerHTML=''; $('biasDelta').textContent=''; return; }
+  const lp=100*b.L/tot;
+  $('biasL').style.width=lp+'%'; $('biasS').style.width=(100-lp)+'%';
+  $('biasLv').textContent=`NET LONG ${lp.toFixed(1)}% · ${fmtUsd(b.L)}`;
+  $('biasSv').textContent=`${fmtUsd(b.S)} · SHORT ${(100-lp).toFixed(1)}%`;
+  // shift vs ~30 min ago
+  const ref=biasHist.find(x=>Date.now()-x.ts<40*60e3 && Date.now()-x.ts>20*60e3) || biasHist[0];
+  if(ref){ const then=100*ref.l/(ref.l+ref.s); const d=lp-then;
+    const mins=Math.round((Date.now()-ref.ts)/60000);
+    $('biasDelta').innerHTML = Math.abs(d)<0.05?`<span class="microlabel">flat ${mins}m</span>`
+      :`<span class="${d>0?'up':'down'}">${d>0?'▲':'▼'} ${Math.abs(d).toFixed(1)}pts</span> <span class="microlabel">${mins}m</span>`; }
+  // crowding: where is the whale book concentrated
+  const rows=Object.entries(b.perCoin).map(([coin,x])=>({coin,tot:x.L+x.S,...x}))
+    .sort((a,c)=>c.tot-a.tot).slice(0,6);
+  $('crowdList').innerHTML=`<div style="padding:8px 14px 2px" class="microlabel">crowding — share of whale book (${b.n} accounts)</div>`+
+   rows.map(x=>{ const share=100*x.tot/tot, lpc=100*x.L/x.tot;
+    return `<div class="crowdrow"><span class="coin">${x.coin}</span>
+      <span class="crowdbar" title="${lpc.toFixed(0)}% long"><i class="L" style="width:${share*lpc/100}%"></i><i class="S" style="width:${share*(100-lpc)/100}%;margin-left:2px"></i></span>
+      <span class="amt num">${fmtUsd(x.tot)}</span><span class="share num">${share.toFixed(1)}% · ${lpc.toFixed(0)}∕${(100-lpc).toFixed(0)} L∕S</span></div>`; }).join('');
+}
+
+/* ---- HL totals: everything open + session flow ---- */
+function renderTotals(){
+  let L=0,Sh=0,nL=0,nS=0;
+  for(const [,acc] of S.hl.accounts) for(const p of acc.positions){
+    if(p.szi>0){L+=p.val;nL++;} else {Sh+=p.val;nS++;} }
+  const tot=L+Sh; if(!tot){$('totLv').textContent='scanning…';return;}
+  const lp=100*L/tot;
+  $('totL').style.width=lp+'%'; $('totS').style.width=(100-lp)+'%';
+  $('totLv').textContent=`LONG ${fmtUsd(L)} · ${lp.toFixed(1)}%`;
+  $('totSv').textContent=`${(100-lp).toFixed(1)}% · ${fmtUsd(Sh)} SHORT`;
+  $('totLc').textContent=`${nL.toLocaleString()} longs open`;
+  $('totSc').textContent=`${nS.toLocaleString()} shorts open`;
+  const f=S.hl.flow;
+  $('flowTitle').textContent=`newly opened while watching (since ${new Date(f.since).toTimeString().slice(0,5)})`;
+  $('flowL').textContent=`+${f.oL.toLocaleString()} longs · ${fmtUsd(f.oLu)}`;
+  $('flowS').textContent=`+${f.oS.toLocaleString()} shorts · ${fmtUsd(f.oSu)}`;
+}
+
+/* ---- venue comparison table ---- */
+function renderStats(){
+  $('venueTitle').textContent=`${S.coin} · HYPERLIQUID vs LIGHTER`;
+  const rows=[['hyperliquid','HYPERLIQUID'],['lighter','LIGHTER']]
+   .map(([id,label])=>{
+    const st=S.stats[id]||{}; const fs=S.feedStatus[id];
+    return `<tr><td><b>${label}</b> <span class="qtag">on-chain</span></td>
+      <td class="num">${st.mark!=null?fmtPx(st.mark):(id==='hyperliquid'&&S.marks[S.coin]?fmtPx(S.marks[S.coin]):'—')}</td>
+      <td class="num">${fmtUsd(st.oiUsd)}</td>
+      <td class="num ${st.fundApr>0?'up':st.fundApr<0?'down':''}">${st.fundApr!=null?st.fundApr.toFixed(1)+'%':'—'}</td>
+      <td><span class="sub">${fs?fs.msg:'—'}</span></td></tr>`; }).join('');
+  $('venueTable').innerHTML=`<thead><tr><th>venue</th><th>mark</th><th>open interest</th><th>funding apr</th>
+    <th>feed</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+/* ---- pulse strip ---- */
+function binSum(b){ let long=0,short=0;
+  for(const [v,x] of Object.entries(b||{})){ if(!S.venueOn.has(v))continue; long+=x.long; short+=x.short; }
+  return {long,short}; }
+function drawPulse(){ const cv=$('pulse'),ctx=cv.getContext('2d'); const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const nowBin=Math.floor(Date.now()/30000), N=40, bw=W/N;
+  let max=0; for(let i=0;i<N;i++){const b=binSum(S.bins.get(nowBin-i)); max=Math.max(max,b.long+b.short);}
+  if(!max)max=1;
+  for(let i=0;i<N;i++){ const b=binSum(S.bins.get(nowBin-(N-1-i))); if(!(b.long+b.short))continue;
+    const x=i*bw, tot=(b.long+b.short)/max*(H-2);
+    const hl=b.long/(b.long+b.short)*tot;
+    ctx.fillStyle='#ff5464'; ctx.fillRect(x+1,H-tot,bw-2,tot-hl);
+    ctx.fillStyle='#2ee6a6'; ctx.fillRect(x+1,H-hl,bw-2,hl); } }
+
+/* ================= THE LADDER ================= */
+const cv=$('ladder'), lctx=cv.getContext('2d');
+let plotW=0,plotH=0,DPR=1,CH={x:0,w:0,list:[]};
+function sizeLadder(){ DPR=window.devicePixelRatio||1;
+  const small=window.innerWidth<760;
+  const w=$('ladderWrap').clientWidth; const h=clamp(window.innerHeight-(small?240:330),small?360:520,760);
+  cv.style.height=h+'px'; cv.width=w*DPR; cv.height=h*DPR; plotW=w; plotH=h; drawLadder(); }
+window.addEventListener('resize',sizeLadder);
+
+const PADL=64, PADR=96, PADT=30, PADB=16, NB=96;
+function ladderModel(){
+  const mark=S.marks[S.coin]; if(!mark)return null;
+  const center=mark*(S.centerMul||1);   // pan offset, expressed relative to mark so the view rides along with price
+  const lo=center*(1-S.zoom), hi=center*(1+S.zoom);
+  let all=coinPositions(S.coin);
+  if(S.sizeFilter==='small')all=all.filter(p=>p.val<1e6);
+  else if(S.sizeFilter==='whale')all=all.filter(p=>p.val>=1e6);
+  const pos=all.filter(p=>p.liq>=lo&&p.liq<=hi);
+  let outUsd=0; for(const p of all) if(p.liq<lo||p.liq>hi)outUsd+=p.val;
+  const buckets=new Array(NB).fill(null).map(()=>({usd:0,n:0,top:null}));
+  for(const p of pos){ const bi=clamp(Math.floor((hi-p.liq)/(hi-lo)*NB),0,NB-1);
+    const b=buckets[bi]; const u=p.val; b.usd+=u; b.n++;
+    if(!b.top||u>b.top.val)b.top=p; }
+  let cumUp=0,cumDn=0,cumUpN=0,cumDnN=0; const markBi=clamp(Math.floor((hi-mark)/(hi-lo)*NB),0,NB-1);
+  const cums=new Array(NB).fill(0), cumsN=new Array(NB).fill(0);
+  for(let i=markBi;i>=0;i--){cumUp+=buckets[i].usd;cumUpN+=buckets[i].n;cums[i]=cumUp;cumsN[i]=cumUpN;}   // shorts above
+  for(let i=markBi+1;i<NB;i++){cumDn+=buckets[i].usd;cumDnN+=buckets[i].n;cums[i]=cumDn;cumsN[i]=cumDnN;} // longs below
+  const maxUsd=Math.max(1,...buckets.map(b=>b.usd));
+  const maxN=Math.max(1,...buckets.map(b=>b.n));
+  const whales=pos.slice().sort((a,b)=>b.val-a.val).slice(0,8);
+  return {mark,lo,hi,buckets,markBi,maxUsd,maxN,whales,cums,cumsN,posCount:pos.length,outUsd};
+}
+let M=null;
+function drawLadder(reuse){
+  if(!reuse||!M){
+    M=ladderModel();
+  }
+  const c=lctx; c.setTransform(DPR,0,0,DPR,0,0); c.clearRect(0,0,plotW,plotH);
+  c.font='10px "IBM Plex Mono",monospace';
+  if(!M){ c.fillStyle='#5f6b7a'; c.textAlign='center';
+    c.fillText('waiting for price + position data…',plotW/2,plotH/2); renderLadderTable(); return; }
+  const {mark,lo,hi,buckets,maxUsd,whales}=M;
+  const y=px=>PADT+(hi-px)/(hi-lo)*(plotH-PADT-PADB);
+  const bh=(plotH-PADT-PADB)/NB;
+  // one unified plot: liquidation bands anchor to the price axis (right) and
+  // extend left, translucent; the price candles run full-width on top of them
+  const xL=PADL, xR=plotW-PADR, span=xR-xL, barMax=span*0.55;
+  M.whalePts=[];
+
+  // danger band ±1.5%
+  c.fillStyle='rgba(245,184,28,.05)';
+  c.fillRect(0,y(mark*1.015),plotW,y(mark*0.985)-y(mark*1.015));
+
+  // grid ticks: % distance from mark, step adapts to zoom
+  c.strokeStyle='#1a222d'; c.lineWidth=1; c.fillStyle='#5f6b7a'; c.textAlign='left';
+  const stepPct=[0.005,0.01,0.025,0.05,0.10].find(s=>(S.zoom*2)/s<=9)||0.10;
+  const dMin=Math.ceil((lo/mark-1)/stepPct), dMax=Math.floor((hi/mark-1)/stepPct);
+  for(let d=dMin;d<=dMax;d++){ const p=mark*(1+d*stepPct); if(p<lo||p>hi||d===0)continue;
+    const yy=Math.round(y(p))+.5; c.beginPath();c.moveTo(PADL,yy);c.lineTo(plotW-PADR,yy);c.stroke();
+    c.fillText((d>0?'+':'')+(d*stepPct*100).toFixed(1)+'%',6,yy+3); }
+
+  // liquidation bands — anchored to the price axis, extending left, translucent;
+  // weighted by dollars, or by trader count when the majority view is on
+  const useCnt=S.mapWeight==='count';
+  let maxBucketUp=null,maxBucketDn=null;
+  buckets.forEach((b,i)=>{ if(!b.usd)return;
+    const isShortSide=i<=M.markBi;
+    const py=PADT+i*bh, w=Math.max(2,(useCnt?b.n/M.maxN:b.usd/maxUsd)*barMax);
+    c.fillStyle=isShortSide?'rgba(255,84,100,.45)':'rgba(46,230,166,.42)';
+    c.beginPath(); c.roundRect(xR-w,py+1,w,Math.max(1.5,bh-2),2); c.fill();
+    const beats=x=>useCnt?b.n>x.n:b.usd>x.usd;
+    if(isShortSide){ if(!maxBucketUp||beats(maxBucketUp))maxBucketUp={...b,i,w,py}; }
+    else { if(!maxBucketDn||beats(maxBucketDn))maxBucketDn={...b,i,w,py}; } });
+
+  // price overlay across the whole plot, on top of the bands
+  nudgeCandle();
+  CH={x:xL,w:span,list:[]};
+  if(S.candles.length&&S.priceMode!=='off'){
+    const N=clamp(Math.floor(span/3),40,360);
+    const maxShift=Math.max(0,S.candles.length-N);
+    if((S.timeShift||0)>maxShift-40)backfillCandles();   // approaching buffered history → pull older
+    const tShift=Math.min(Math.round(S.timeShift||0),maxShift);
+    const endI=S.candles.length-tShift;
+    const list=S.candles.slice(Math.max(0,endI-N),endI); CH.list=list;
+    const cw=span/list.length;
+    c.save(); c.beginPath(); c.rect(xL,PADT,span,plotH-PADT-PADB); c.clip();
+    if(S.priceMode==='candles'){
+      list.forEach((k,i)=>{ const x=xL+i*cw; const up=k.c>=k.o;
+        c.strokeStyle=up?'rgba(46,230,166,.7)':'rgba(255,84,100,.7)';
+        c.lineWidth=1; c.beginPath(); c.moveTo(x+cw/2,y(k.h)); c.lineTo(x+cw/2,y(k.l)); c.stroke();
+        c.fillStyle=up?'#2ee6a6':'#ff5464';
+        const yo=y(k.o), yc=y(k.c);
+        c.fillRect(x+0.5,Math.min(yo,yc),Math.max(1,cw-1),Math.max(1,Math.abs(yc-yo))); });
+    } else { // 'line' — a quiet neutral path so the bands stay the story
+      c.strokeStyle='rgba(237,242,248,.75)'; c.lineWidth=1.5; c.beginPath();
+      list.forEach((k,i)=>{ const x=xL+i*cw+cw/2, yy=y(k.c); i?c.lineTo(x,yy):c.moveTo(x,yy); });
+      c.stroke();
+      if(!tShift){ const lk=list[list.length-1];
+        c.fillStyle='#edf2f8'; c.beginPath(); c.arc(xL+span-cw/2,y(lk.c),2.5,0,7); c.fill(); }
+    }
+    // time gridlines (local time), labels drawn after the clip is released
+    const stepMin=[15,30,60,120,240,480].find(s=>list.length/s<=7)||480;
+    const tTicks=[];
+    c.strokeStyle='rgba(154,166,181,.10)'; c.lineWidth=1;
+    list.forEach((k,i)=>{ if((k.t/60000)%stepMin)return; const x=xL+i*cw+cw/2;
+      c.beginPath(); c.moveTo(x,PADT); c.lineTo(x,plotH-PADB); c.stroke(); tTicks.push({x,t:k.t}); });
+    c.restore();
+    c.fillStyle='#5f6b7a'; c.font='9px "IBM Plex Mono",monospace'; c.textAlign='center';
+    for(const tk of tTicks) if(tk.x>xL+280&&tk.x<xR-30)
+      c.fillText(new Date(tk.t).toTimeString().slice(0,5),tk.x,plotH-4);
+    c.textAlign='left';
+  }
+
+  // label helper: text on a dark pill so it stays readable over lines and bands
+  const pill=(text,x,yy,color)=>{ c.font='600 10px "IBM Plex Mono",monospace'; c.textAlign='right';
+    const tw=c.measureText(text).width;
+    c.fillStyle='rgba(7,9,13,.78)'; c.beginPath(); c.roundRect(x-tw-5,yy-8,tw+10,15,3); c.fill();
+    c.fillStyle=color||'#edf2f8'; c.fillText(text,x,yy+3); };
+
+  // whale diamonds at their band tips
+  whales.forEach((w,wi)=>{ const yy=y(w.liq); const ww=clamp(w.val/maxUsd,0.02,1)*barMax;
+    const xx=xR-ww-10;
+    c.save(); c.translate(xx,yy); c.rotate(Math.PI/4);
+    c.fillStyle=w.side==='short'?'#ff5464':'#2ee6a6'; c.fillRect(-4,-4,8,8);
+    c.strokeStyle='#07090d'; c.lineWidth=1.5; c.strokeRect(-4,-4,8,8); c.restore();
+    // top-3 whales carry their $ value; named ones keep their name too
+    const lbl= wi<3 ? (w.name?w.name.slice(0,11)+' · ':'')+fmtUsd(w.val) : (w.name?w.name.slice(0,11):'');
+    M.whalePts.push({w,x:xx,y:yy,labeled:!!lbl});
+    if(lbl) pill(lbl,xx-10,yy,wi<3?'#edf2f8':'#9aa6b5'); });
+
+  // biggest cluster per side — skip if a labeled whale already tells the number on that row
+  for(const mb of [maxBucketUp,maxBucketDn]){ if(!mb)continue;
+    const rowY=mb.py+bh/2;
+    let lx=xR-mb.w-8, skip=false;
+    for(const pt of M.whalePts) if(Math.abs(pt.y-rowY)<9){ if(pt.labeled&&!useCnt){skip=true;break;} lx=Math.min(lx,pt.x-14); }
+    if(!skip) pill(useCnt?`${mb.n} traders · ${fmtUsd(mb.usd)}`:fmtUsd(mb.usd),lx,rowY); }
+
+  // flashes: recent liq prints on this coin
+  const nowT=Date.now(); S.flashes=S.flashes.filter(f=>nowT-f.ts<6000);
+  for(const f of S.flashes){ const a=1-(nowT-f.ts)/6000; const yy=y(clamp(f.px,lo,hi));
+    c.beginPath(); c.arc(plotW-PADR+14,yy,3+4*(1-a),0,7);
+    c.fillStyle=(f.side==='long'?'rgba(46,230,166,':'rgba(255,84,100,')+(a*.8)+')'; c.fill(); }
+
+  // price axis (right) — skip the tick that would collide with the mark label
+  c.textAlign='right'; c.fillStyle='#5f6b7a'; c.font='10px "IBM Plex Mono",monospace';
+  const ticks=6;
+  for(let i=0;i<=ticks;i++){ const p=hi-(hi-lo)*i/ticks;
+    if(Math.abs(y(p)-y(mark))<14)continue; c.fillText(fmtPx(p),plotW-8,y(p)+3); }
+
+  // mark line
+  if(mark>=lo&&mark<=hi){
+    const ym=Math.round(y(mark))+.5;
+    c.strokeStyle='#edf2f8'; c.lineWidth=1; c.setLineDash([6,4]);
+    c.beginPath();c.moveTo(PADL-8,ym);c.lineTo(plotW-PADR+30,ym);c.stroke(); c.setLineDash([]);
+    const pulse=0.55+0.45*Math.sin(nowT/450);
+    c.fillStyle='#edf2f8'; c.textAlign='right'; c.font='600 12px "IBM Plex Mono",monospace';
+    c.fillText(fmtPx(mark),plotW-8,ym-6);
+    c.fillStyle=`rgba(237,242,248,${pulse})`; c.beginPath(); c.arc(PADL-14,ym,3,0,7); c.fill();
+  }
+
+  // captions (cumulative totals folded in — one line, no collisions)
+  c.font='600 11px "Chakra Petch",monospace'; c.textAlign='left';
+  c.fillStyle='#ff5464'; c.fillText(`SHORTS DIE UP HERE ↑  ${fmtUsd(M.cums[0]||0)} by +${(S.zoom*100).toFixed(0)}%`,xL,PADT-10);
+  c.fillStyle='#2ee6a6'; c.fillText(`LONGS DIE DOWN HERE ↓  ${fmtUsd(M.cums[NB-1]||0)} by −${(S.zoom*100).toFixed(0)}%`,xL,plotH-4);
+  if((S.timeShift||0)>0.5&&CH.list.length){
+    const mins=Math.round(Math.min(S.timeShift,S.candles.length));
+    const dur=mins>=60?Math.floor(mins/60)+'h '+(mins%60)+'m':mins+'m';
+    pill('⏪ '+dur+' back · double-click for live',xR-8,PADT-3,'#f5b81c');
+  }
+
+  // empty-map guidance: cold boot for new visitors, or a range with no levels
+  if(M.posCount===0){
+    c.fillStyle='#9aa6b5'; c.textAlign='center'; c.font='12px "IBM Plex Mono",monospace';
+    const cx2=(xL+xR)/2, cy2=(PADT+plotH-PADB)/2;
+    const lines= S.hl.accounts.size<60
+      ? ['building the map — scanning the Hyperliquid wallet universe',
+         S.hl.lbState==='downloading'?`downloading wallet list… ${((S.hl.lbProgress||0)/1e6).toFixed(0)} MB / ~35 MB`
+           :`${S.hl.scanned.toLocaleString()} wallets scanned · bands appear as positions are found`,
+         'takes a couple of minutes on first visit — the live feed on the right is already running']
+      : ['no tracked liquidation levels inside this range',
+         'widen to ±20% / ±40%, drag the price axis, or try BARS: PEOPLE / SIZE: <$1M'];
+    lines.forEach((t,i)=>c.fillText(t,cx2,cy2-12+i*19));
+    c.textAlign='left';
+  }
+
+  // out-of-view context lives in the legend strip below the canvas
+  const cs=coinStats(S.coin);
+  const lg=$('mapContext');
+  if(lg) lg.textContent=(M.outUsd>0?` · ${fmtUsd(M.outUsd)} liquidates beyond ±${(S.zoom*100).toFixed(0)}%`:'')+
+    (cs&&cs.noliq?` · ${cs.noliq} positions have no liq price (fat collateral)`:'');
+
+  // hover crosshair
+  if(S.hover){ const {my,bi:hbi}=S.hover; const p=hi-(my-PADT)/(plotH-PADT-PADB)*(hi-lo);
+    if(p>=lo&&p<=hi){ const yy=Math.round(my)+.5;
+      c.strokeStyle='rgba(154,166,181,.5)'; c.beginPath();c.moveTo(PADL,yy);c.lineTo(plotW-PADR,yy);c.stroke();
+      if(hbi!=null&&buckets[hbi]&&buckets[hbi].usd){ // glow the snapped data row the tooltip is describing
+        c.fillStyle='rgba(237,242,248,.07)'; c.fillRect(xL,PADT+hbi*bh,span,bh);
+      }
+      // axis tags at the cursor: the price, and the total that dies between here and mark
+      const biRaw=clamp(Math.floor((hi-p)/(hi-lo)*NB),0,NB-1);
+      pill(fmtPx(p),plotW-8,yy);
+      if(M.cums[biRaw]) pill(fmtUsd(M.cums[biRaw])+' dies',plotW-8,yy+17,p>=mark?'#ff5464':'#2ee6a6');
+    } }
+
+  renderLadderTable();
+}
+setInterval(()=>{ if(!document.hidden){drawLadder();renderPrice();} },1000);
+
+// hover tooltip
+// chart movement, TradingView-style: drag the plot to pan, swipe/scroll to zoom
+// around the cursor, drag the price axis to stretch, double-click to recenter
+let axisDrag=null,panDrag=null,dragMoved=false;
+cv.addEventListener('mousedown',e=>{ const r=cv.getBoundingClientRect(); const mx=e.clientX-r.left;
+  dragMoved=false;
+  if(mx>plotW-PADR){ axisDrag={y0:e.clientY,z0:S.zoom}; S.zoomManual=true; }
+  else panDrag={y0:e.clientY,x0:e.clientX,c0:S.centerMul||1,s0:S.timeShift||0};
+  e.preventDefault(); });
+window.addEventListener('mousemove',e=>{
+  if(axisDrag){ S.zoom=clamp(axisDrag.z0*Math.exp((e.clientY-axisDrag.y0)/180),0.005,0.6);
+    setZoom(S.zoom); dragMoved=true; drawLadder(); return; }
+  if(panDrag){ const dy=e.clientY-panDrag.y0, dx=e.clientX-panDrag.x0;
+    if(Math.abs(dy)>3||Math.abs(dx)>3)dragMoved=true;
+    S.centerMul=clamp(panDrag.c0*(1+(dy/(plotH-PADT-PADB))*2*S.zoom),0.2,5);
+    S.timeShift=Math.max(0,panDrag.s0+dx/3);   // drag right = back in time
+    drawLadder(); } });
+window.addEventListener('mouseup',()=>{ axisDrag=null; panDrag=null; });
+// touch: one-finger drag pans price and time, same as mouse drag
+let touch0=null;
+cv.addEventListener('touchstart',e=>{ const t=e.touches[0];
+  touch0={x:t.clientX,y:t.clientY,c0:S.centerMul||1,s0:S.timeShift||0}; },{passive:true});
+cv.addEventListener('touchmove',e=>{ if(!touch0)return; e.preventDefault();
+  const t=e.touches[0]; const dy=t.clientY-touch0.y, dx=t.clientX-touch0.x;
+  S.centerMul=clamp(touch0.c0*(1+(dy/(plotH-PADT-PADB))*2*S.zoom),0.2,5);
+  S.timeShift=Math.max(0,touch0.s0+dx/3);
+  drawLadder(); },{passive:false});
+cv.addEventListener('touchend',()=>{ touch0=null; });
+cv.addEventListener('wheel',e=>{ e.preventDefault(); if(!M)return;
+  if(Math.abs(e.deltaX)>Math.abs(e.deltaY)*1.2){ // horizontal swipe = move through time
+    S.timeShift=Math.max(0,(S.timeShift||0)-e.deltaX*0.6); drawLadder(); return; }
+  const r=cv.getBoundingClientRect(); const my=e.clientY-r.top;
+  const {lo,hi}=M; const p=hi-(my-PADT)/(plotH-PADT-PADB)*(hi-lo);
+  const mark=S.marks[S.coin]; if(!mark)return;
+  // swipe down = range expands, swipe up = range tightens; zoom holds the price under the cursor
+  const zN=clamp(S.zoom*Math.exp(-e.deltaY*0.0016),0.005,0.6);
+  const f=(hi-p)/(hi-lo);
+  S.centerMul=clamp((p/(1+zN*(1-2*f)))/mark,0.2,5);
+  S.zoom=zN; S.zoomManual=true; setZoom(zN); drawLadder();
+},{passive:false});
+cv.addEventListener('dblclick',()=>{ S.centerMul=1; S.timeShift=0; S.zoomManual=false; S.autoZoomedFor=null; drawLadder(); });
+
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect(); const my=e.clientY-r.top, mx=e.clientX-r.left;
+  S.hover={my,mx};
+  if(axisDrag){$('tooltip').style.display='none';return;}
+  if(!M){$('tooltip').style.display='none';return;}
+  const {mark,lo,hi,buckets,cums}=M;
+  const p=hi-(my-PADT)/(plotH-PADT-PADB)*(hi-lo);
+  if(p<lo||p>hi){$('tooltip').style.display='none';cv.style.cursor='crosshair';return;}
+  // whale proximity: nearest diamond within a generous reach
+  let wp=null,best=1e9;
+  for(const pt of (M.whalePts||[])){ if(Math.abs(pt.y-my)>=14||Math.abs(pt.x-mx)>=46)continue;
+    const d=Math.abs(pt.y-my)*3+Math.abs(pt.x-mx); if(d<best){best=d;wp=pt;} }
+  const w=wp&&wp.w;
+  cv.style.cursor= mx>plotW-PADR?'ns-resize' : w?'pointer':'crosshair';
+  // bucket under cursor — snap to the nearest non-empty level within ~3 rows
+  let bi=clamp(Math.floor((hi-p)/(hi-lo)*NB),0,NB-1);
+  if(!(buckets[bi]&&buckets[bi].usd)){
+    for(let k=1;k<=3;k++){ if(buckets[bi-k]&&buckets[bi-k].usd){bi=bi-k;break;}
+      if(buckets[bi+k]&&buckets[bi+k].usd){bi=bi+k;break;} } }
+  const b=buckets[bi], bPx=hi-(bi+0.5)/NB*(hi-lo);
+  S.hover.bi=(b&&b.usd)?bi:null;
+  if(!hoverRaf)hoverRaf=requestAnimationFrame(()=>{hoverRaf=0;drawLadder(true);});
+  const dist=(p-mark)/mark*100;
+  const biRaw=clamp(Math.floor((hi-p)/(hi-lo)*NB),0,NB-1);
+  let html=`<div class="tt-title num">${fmtPx(p)} <span style="color:var(--muted)">(${dist>0?'+':''}${dist.toFixed(2)}%)</span></div>`;
+  if(M.cums[biRaw]) html+=`<div class="row"><span>if price gets here</span><b class="${p>=mark?'down':'up'}">${fmtUsd(M.cums[biRaw])} · ${M.cumsN[biRaw]} ${p>=mark?'shorts':'longs'} die</b></div>`;
+  if(w){ html+=`<div class="row"><span>${w.name||short(w.addr)}</span><b class="${w.side==='long'?'up':'down'}">${w.side.toUpperCase()} ${fmtUsd(w.val)}</b></div>
+    <div class="row"><span>entry ${fmtPx(w.entry)}</span><b>liq ${fmtPx(w.liq)}</b></div>
+    <div class="row"><span>${w.lev?w.lev+'x '+(w.cross?'cross':'isolated'):''}</span><b class="${w.upnl>=0?'up':'down'}">${w.upnl>=0?'+':''}${fmtUsd(w.upnl)} uPnL</b></div>
+    <div class="row"><span style="color:var(--link)">click → hypurrscan</span></div>`; }
+  else { if(b&&b.usd){ html+=`<div class="row"><span>dies @ ${fmtPx(bPx)}</span><b>${fmtUsd(b.usd)}</b></div>
+    <div class="row"><span>positions</span><b>${b.n}</b></div>
+    ${b.top?`<div class="row"><span>biggest</span><b>${b.top.name||short(b.top.addr)} · ${fmtUsd(b.top.val)}</b></div>`:''}`; }
+    else html+=`<div class="row"><span>no tracked liq levels here</span></div>`;
+    if(CH.list.length&&S.priceMode!=='off'){
+      const k=CH.list[clamp(Math.floor((mx-CH.x)/(CH.w/CH.list.length)),0,CH.list.length-1)];
+      html+=`<div class="row"><span>${new Date(k.t).toTimeString().slice(0,5)} price</span><b class="${k.c>=k.o?'up':'down'}">${fmtPx(k.c)}</b></div>`; } }
+  const tt=$('tooltip'); tt.innerHTML=html; tt.style.display='block';
+  tt.style.left=Math.min(e.clientX+16,window.innerWidth-320)+'px'; tt.style.top=(e.clientY+14)+'px';
+});
+let hoverRaf=0;
+cv.addEventListener('mouseleave',()=>{S.hover=null;$('tooltip').style.display='none';drawLadder(true);});
+cv.addEventListener('click',e=>{
+  if(!M||dragMoved)return; const r=cv.getBoundingClientRect(); const my=e.clientY-r.top, mx=e.clientX-r.left;
+  const wp=(M.whalePts||[]).find(pt=>Math.abs(pt.y-my)<11&&Math.abs(pt.x-mx)<34);
+  if(wp)window.open('https://hypurrscan.io/address/'+wp.w.addr,'_blank');
+});
+
+function renderLadderTable(){
+  if(!S.tableView)return;
+  const el=$('ladderTable');
+  if(!M){el.innerHTML='<div class="feedempty">no data yet</div>';return;}
+  const rows=M.buckets.map((b,i)=>({...b,i})).filter(b=>b.usd>0)
+    .sort((a,b)=>b.usd-a.usd).slice(0,16)
+    .map(b=>{ const p=M.hi-(b.i+0.5)/NB*(M.hi-M.lo); const d=(p-M.mark)/M.mark*100;
+      return `<tr><td class="num">${fmtPx(p)}</td>
+        <td class="${b.i<=M.markBi?'down':'up'}">${b.i<=M.markBi?'SHORTS':'LONGS'}</td>
+        <td class="num">${d>0?'+':''}${d.toFixed(2)}%</td>
+        <td class="num">${fmtUsd(b.usd)}</td><td class="num">${b.n}</td>
+        <td>${b.top?(b.top.name||short(b.top.addr))+' · '+fmtUsd(b.top.val):''}</td></tr>`; }).join('');
+  el.innerHTML=`<table><thead><tr><th>price</th><th>side</th><th>dist</th><th>$ dies</th><th>#</th><th>biggest position</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ================= chips & controls ================= */
+function selectCoin(base){
+  const old=S.coin; closeCoinPanel(); if(base===old)return;
+  S.coin=base; $('coinBtn').textContent=base+' ▾'; $('ladderTitle').textContent=base;
+  S.zoomManual=false; S.autoZoomedFor=null; S.centerMul=1; S.timeShift=0; setZoom(0.05); // every coin opens at ±5%
+  S.candles=[]; fetchCandles(); renderPrice();
+  hlResub(old); pollStats(); renderHL(); drawLadder(); renderFeed();
+  $('feedScope').textContent=S.feedAll?'ALL COINS':S.coin;
+}
+const CATORDER=['MAJORS','HL ECOSYSTEM','MEMES','AI','DEFI','OTHER'];
+function renderCoinDropdown(filter){
+  const q=(filter||'').trim().toUpperCase();
+  const groups={};
+  for(const r of REGISTRY){ if(q&&!r.base.toUpperCase().includes(q))continue;
+    (groups[r.cat||'OTHER']=groups[r.cat||'OTHER']||[]).push(r); }
+  $('coinList').innerHTML=CATORDER.filter(c=>groups[c]&&groups[c].length).map(c=>
+    `<div class="ddcat">${c}</div>`+groups[c].map(r=>
+      `<button class="ddrow${r.base===S.coin?' sel':''}" data-c="${r.base}">
+        <span>${r.base}</span><span class="v num">${r.vol?fmtUsd(r.vol)+' · 24h vol':''}</span></button>`).join('')).join('')
+    ||'<div class="ddcat">no match</div>';
+  $('coinMeta').textContent=`${REGISTRY.length} coins · every Hyperliquid perp with >$1M 24h volume`;
+}
+function closeCoinPanel(){ $('coinPanel').hidden=true; }
+$('coinBtn').onclick=e=>{ e.stopPropagation(); const p=$('coinPanel'); p.hidden=!p.hidden;
+  if(!p.hidden){ renderCoinDropdown($('coinSearch').value); $('coinSearch').focus(); } };
+$('coinSearch').oninput=e=>renderCoinDropdown(e.target.value);
+$('coinSearch').onclick=e=>e.stopPropagation();
+$('coinList').onclick=e=>{ const b=e.target.closest('.ddrow'); if(b)selectCoin(b.dataset.c); };
+for(const evt of ['pointerdown','mousedown','touchstart'])
+  document.addEventListener(evt,e=>{ if(!$('coinDD').contains(e.target))closeCoinPanel(); },true);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeCoinPanel(); });
+try{ const sv=JSON.parse(localStorage.getItem('wipeout-venues'));
+  if(Array.isArray(sv)){ const ids=new Set(VENUES.map(v=>v.id)); const keep=sv.filter(x=>ids.has(x));
+    if(keep.length)S.venueOn=new Set(keep); } }catch(e){}
+function renderVenueChips(){ const host=$('venueChips'); host.innerHTML='';
+  let lastG=null;
+  for(const v of VENUES){
+    if(v.g!==lastG){ lastG=v.g; const l=document.createElement('span'); l.className='vgroup';
+      l.textContent=v.g==='real'?'real · complete':'sampled feeds'; host.appendChild(l); }
+    const st=S.feedStatus[v.id]; const b=document.createElement('button');
+    b.className='chip vchip'+(S.venueOn.has(v.id)?'':' off');
+    b.title=(st?st.msg:'')+' · feed: '+v.q;
+    b.innerHTML=`<span class="dot ${st?st.st:''}"></span>${v.label}<span class="q">${v.q}</span>`;
+    b.onclick=()=>{ S.venueOn.has(v.id)?S.venueOn.delete(v.id):S.venueOn.add(v.id);
+      try{localStorage.setItem('wipeout-venues',JSON.stringify([...S.venueOn]));}catch(e){}
+      renderVenueChips(); renderFeed(); renderSess(); renderWindows(); drawPulse(); };
+    host.appendChild(b); } }
+function setZoom(z){ S.zoom=z;
+  document.querySelectorAll('#zoomset button').forEach(b=>b.classList.toggle('on',parseFloat(b.dataset.z)===z)); }
+$('zoomset').addEventListener('click',e=>{ const z=e.target.dataset.z; if(!z)return;
+  S.zoomManual=true; S.centerMul=1; setZoom(parseFloat(z)); drawLadder(); }); // preset = clean view centered on price
+$('tableToggle').onclick=()=>{ S.tableView=!S.tableView; $('ladderCard').classList.toggle('tableview',S.tableView);
+  $('tableToggle').classList.toggle('on',S.tableView); renderLadderTable(); };
+$('weightToggle').onclick=()=>{ S.mapWeight=S.mapWeight==='usd'?'count':'usd';
+  $('weightToggle').textContent=S.mapWeight==='usd'?'BARS: $':'BARS: PEOPLE';
+  $('weightToggle').classList.toggle('on',S.mapWeight==='count'); drawLadder(); };
+const SIZES=[['all','SIZE: ALL'],['small','SIZE: <$1M'],['whale','SIZE: ≥$1M']];
+$('sizeToggle').onclick=()=>{ const i=(SIZES.findIndex(s=>s[0]===S.sizeFilter)+1)%SIZES.length;
+  S.sizeFilter=SIZES[i][0]; $('sizeToggle').textContent=SIZES[i][1];
+  $('sizeToggle').classList.toggle('on',S.sizeFilter!=='all'); drawLadder(); };
+const PXMODES=['line','candles','off'];
+function pxLabel(){ $('pxToggle').textContent='PRICE: '+S.priceMode.toUpperCase(); }
+$('pxToggle').onclick=()=>{ S.priceMode=PXMODES[(PXMODES.indexOf(S.priceMode)+1)%PXMODES.length];
+  try{localStorage.setItem('wipeout-pxmode',S.priceMode);}catch(e){} pxLabel(); drawLadder(); };
+pxLabel();
+$('feedScope').onclick=()=>{ S.feedAll=!S.feedAll; $('feedScope').textContent=S.feedAll?'ALL COINS':S.coin; renderFeed(); };
+
+/* ================= boot ================= */
+renderCoinDropdown(''); renderVenueChips(); renderStats(); renderHL(); sizeLadder();
+applyWatchlist();
+hlConnect();
+initRegistry().then(async()=>{ pollStats(); renderPrice(); fetchCandles();
+  if(!await loadSnap())loadLeaderboard(); });
+setInterval(()=>{ if(!document.hidden){renderHL();renderBias();renderTotals();renderWindows();} },5000);
+renderWindows();
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "functions": {
+    "api/collect.js": { "maxDuration": 60 },
+    "api/snap.js": { "maxDuration": 15 }
+  }
+}

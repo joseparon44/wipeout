@@ -1,0 +1,7 @@
+{
+  "name": "wipeout",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "22.x" },
+  "dependencies": { "@vercel/blob": "^0.27.3" }
+}

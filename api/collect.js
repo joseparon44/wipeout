@@ -170,8 +170,8 @@ async function collect(res){
     if (positions.length) st.accounts[a] = [av, positions];
     else delete st.accounts[a];
   };
-  for (let i = 0; i < list.length && Date.now() - t0 < 38000; i += 4)
-    await Promise.all(list.slice(i, i + 4).map(scanOne));
+  for (let i = 0; i < list.length && Date.now() - t0 < 40000; i += 8)
+    await Promise.all(list.slice(i, i + 8).map(scanOne));
 
   // --- harvest fresh active wallets from the HL tape (they carry the near-mark liqs) ---
   try{

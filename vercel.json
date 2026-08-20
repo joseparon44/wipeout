@@ -1,6 +1,10 @@
 {
   "functions": {
     "api/collect.js": { "maxDuration": 60 },
+    "api/universe.js": { "maxDuration": 60 },
     "api/snap.js": { "maxDuration": 15 }
-  }
+  },
+  "crons": [
+    { "path": "/api/universe", "schedule": "23 7 * * *" }
+  ]
 }

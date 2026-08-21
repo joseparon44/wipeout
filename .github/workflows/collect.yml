@@ -16,5 +16,5 @@ jobs:
           for i in 1 2 3; do
             curl -sf --max-time 90 "https://wipeout-kappa.vercel.app/api/collect" || true
             echo
-            [ $i -lt 3 ] && sleep 65
+            if [ $i -lt 3 ]; then sleep 65; fi
           done

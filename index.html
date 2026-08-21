@@ -160,6 +160,53 @@ td .sub{display:block;font-size:9px;color:var(--muted);letter-spacing:.04em}
 
 footer{padding:10px 18px 22px;color:var(--muted);font-size:10.5px;line-height:1.7}
 
+/* ---- view tabs ---- */
+.viewtabs{display:flex;border:1px solid var(--hair2);border-radius:7px;overflow:hidden}
+.viewtabs button{padding:5px 16px;font-family:var(--disp);font-size:12px;font-weight:600;letter-spacing:.12em;color:var(--muted)}
+.viewtabs button.on{background:var(--raised);color:var(--ink)}
+main[hidden]{display:none !important}
+
+/* ---- SIGNAL view ---- */
+#sigMain{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:14px;padding:14px 18px;align-items:start}
+@media(max-width:1100px){#sigMain{grid-template-columns:1fr}}
+#sigLeft,#sigRight{display:flex;flex-direction:column;gap:14px;min-width:0}
+.sigverdict-wrap{display:flex;align-items:baseline;gap:16px;padding:16px 16px 4px;flex-wrap:wrap}
+.sigverdict{font-family:var(--disp);font-size:30px;font-weight:700;letter-spacing:.1em}
+.sigscore{font-size:16px;color:var(--ink2)}
+.conf{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;padding:2px 8px;border-radius:3px;border:1px solid var(--hair2);color:var(--ink2)}
+.gauge{padding:8px 16px 4px}
+.gtrack{position:relative;height:12px;border-radius:6px;overflow:hidden;
+  background:linear-gradient(90deg, rgba(255,84,100,.55), rgba(255,84,100,.12) 40%, rgba(95,107,122,.18) 50%, rgba(46,230,166,.12) 60%, rgba(46,230,166,.55))}
+.gcenter{position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(237,242,248,.4)}
+.gneedle{position:absolute;top:-2px;bottom:-2px;width:3px;border-radius:2px;background:var(--ink);
+  box-shadow:0 0 8px rgba(237,242,248,.5);left:50%;transition:left .5s ease}
+.glabels{display:flex;justify-content:space-between;margin-top:5px;font-size:9px;letter-spacing:.09em}
+.sigread{padding:10px 16px 14px;font-size:12.5px;line-height:1.65;color:var(--ink2)}
+.sigread b{color:var(--ink)}
+.sigcomp{padding:9px 14px;border-bottom:1px solid var(--hair)}
+.sigcomp:last-child{border-bottom:none}
+.sigcomp-top{display:flex;align-items:center;gap:10px}
+.sigcomp .lbl{font-family:var(--disp);font-size:11px;font-weight:600;letter-spacing:.11em;width:86px;flex:none}
+.sigcomp .sc{width:52px;text-align:right;font-weight:600;flex:none}
+.sigcomp .note{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5}
+.sigcomp.dead .lbl,.sigcomp.dead .sc{color:var(--muted)}
+.minibar{position:relative;flex:1;height:9px;border-radius:3px;background:var(--surface2);overflow:hidden}
+.minibar .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--hair2)}
+.minibar i{position:absolute;top:0;bottom:0;border-radius:2px}
+.playline{display:flex;gap:10px;padding:9px 14px;border-bottom:1px solid var(--hair);font-size:12px;line-height:1.6}
+.playline:last-child{border-bottom:none}
+.playline .tag{flex:none;font-family:var(--disp);font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--muted);width:78px;padding-top:2px}
+.playline .txt{color:var(--ink2)} .playline .txt b{color:var(--ink)}
+.scanrow{display:flex;align-items:center;gap:10px;width:100%;padding:6px 14px;border-bottom:1px solid var(--hair);font-size:12px;text-align:left}
+.scanrow:hover{background:var(--surface2)}
+.scanrow .coin{font-weight:600;width:74px;flex:none}
+.scanrow .verdict{width:98px;flex:none;font-size:10px;letter-spacing:.07em;font-weight:600}
+.scanrow .why{color:var(--muted);font-size:10px;margin-left:auto;text-align:right;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mstat{display:flex;justify-content:space-between;gap:12px;padding:8px 14px;border-bottom:1px solid var(--hair);font-size:12px;align-items:baseline}
+.mstat:last-child{border-bottom:none}
+.mstat .k{color:var(--muted);font-size:11px}
+.sigfoot{padding:9px 14px;font-size:10px;color:var(--muted);line-height:1.6;border-top:1px solid var(--hair)}
+
 /* ---- small screens ---- */
 @media(max-width:760px){
   header{gap:10px;padding:8px 12px}
@@ -175,6 +222,9 @@ footer{padding:10px 18px 22px;color:var(--muted);font-size:10.5px;line-height:1.
   .ddpanel{width:min(330px,88vw)}
   .maplegend{font-size:9.5px}
   #feedList{max-height:330px}
+  .viewtabs button{padding:4px 10px;font-size:11px}
+  #sigMain{padding:10px;gap:10px}
+  .sigverdict{font-size:22px}
 }
 </style>
 </head>
@@ -182,6 +232,10 @@ footer{padding:10px 18px 22px;color:var(--muted);font-size:10.5px;line-height:1.
 
 <header>
   <div class="wordmark">WIPE<b>OUT</b><span class="sub">PERP LIQUIDATION RADAR</span></div>
+  <nav class="viewtabs" id="viewTabs">
+    <button data-v="map" class="on">RADAR</button>
+    <button data-v="signal">SIGNAL</button>
+  </nav>
   <div id="pulseWrap" title="How much money got liquidated in each 30-second slice, last 20 minutes. Taller bar = more $ wiped. Green part = longs, red part = shorts — an even split shows half/half.">
     <span class="microlabel">$ liquidated · 30s slices · <span class="up">■ longs</span> <span class="down">■ shorts</span></span>
     <canvas id="pulse" width="252" height="34"></canvas></div>
@@ -202,7 +256,7 @@ footer{padding:10px 18px 22px;color:var(--muted);font-size:10.5px;line-height:1.
   </div>
   <span class="microlabel" id="coinMeta"></span>
 </div>
-<div class="filters">
+<div class="filters" id="filters2">
   <span class="microlabel" style="margin-right:4px">venues</span>
   <span id="venueChips" style="display:flex;gap:8px;flex-wrap:wrap"></span>
   <span class="spacer"></span>
@@ -287,6 +341,50 @@ footer{padding:10px 18px 22px;color:var(--muted);font-size:10.5px;line-height:1.
     </div>
   </div>
 
+</main>
+
+<main id="sigMain" hidden>
+  <div id="sigLeft">
+    <div class="card">
+      <div class="cardhead"><h2 id="sigCoin">BTC</h2>
+        <span class="bigpx num" id="sigPx">—</span><span class="num" id="sigPx24"></span>
+        <div class="right"><span class="conf" id="sigConf">—</span></div></div>
+      <div class="sigverdict-wrap">
+        <div class="sigverdict" id="sigVerdict">—</div>
+        <div class="sigscore num" id="sigScore"></div>
+      </div>
+      <div class="gauge">
+        <div class="gtrack"><div class="gcenter"></div><div class="gneedle" id="sigNeedle"></div></div>
+        <div class="glabels"><span class="down">STRONG SHORT</span><span class="microlabel">the six reads, weighted</span><span class="up">STRONG LONG</span></div>
+      </div>
+      <div class="sigread" id="sigRead"></div>
+    </div>
+
+    <div class="card">
+      <div class="cardhead"><h2>WHY — THE SIX READS</h2><span class="note">every input is real tracked data · each scored −1 to +1</span></div>
+      <div id="sigComps"></div>
+    </div>
+
+    <div class="card">
+      <div class="cardhead"><h2>PLAYBOOK</h2><span class="note">mechanical translation of the reads — levels are exact liq prices</span></div>
+      <div id="sigPlay"></div>
+      <div style="overflow-x:auto"><table id="sigLevels"></table></div>
+      <div class="sigfoot">Signals are a mechanical read of tracked on-chain positioning — coverage is partial and skews to whales + active
+      traders, so treat scores as pressure gauges, not predictions. Clusters are magnets before they trade and vacuums after:
+      once a cluster is swept its fuel is gone. Not financial advice.</div>
+    </div>
+  </div>
+
+  <div id="sigRight">
+    <div class="card">
+      <div class="cardhead"><h2>MARKET SCAN</h2><span class="note">strongest signals across tracked coins</span></div>
+      <div id="sigScan"></div>
+    </div>
+    <div class="card">
+      <div class="cardhead"><h2>MARKET STATE</h2><span class="note">the whole-market dials behind every coin signal</span></div>
+      <div id="sigMkt"></div>
+    </div>
+  </div>
 </main>
 
 <footer>
@@ -1136,7 +1234,7 @@ function drawLadder(reuse){
 
   renderLadderTable();
 }
-setInterval(()=>{ if(!document.hidden){drawLadder();renderPrice();} },1000);
+setInterval(()=>{ if(!document.hidden&&S.view!=='signal'){drawLadder();renderPrice();} },1000);
 
 // hover tooltip
 // chart movement, TradingView-style: drag the plot to pan, swipe/scroll to zoom
@@ -1251,6 +1349,7 @@ function selectCoin(base){
   S.candles=[]; fetchCandles(); renderPrice();
   hlResub(old); pollStats(); renderHL(); drawLadder(); renderFeed();
   $('feedScope').textContent=S.feedAll?'ALL COINS':S.coin;
+  if(S.view==='signal')renderSignal();
 }
 const CATORDER=['MAJORS','HL ECOSYSTEM','MEMES','AI','DEFI','OTHER'];
 function renderCoinDropdown(filter){
@@ -1310,13 +1409,250 @@ $('pxToggle').onclick=()=>{ S.priceMode=PXMODES[(PXMODES.indexOf(S.priceMode)+1)
 pxLabel();
 $('feedScope').onclick=()=>{ S.feedAll=!S.feedAll; $('feedScope').textContent=S.feedAll?'ALL COINS':S.coin; renderFeed(); };
 
+/* ================= SIGNAL engine ================= */
+// Condenses everything tracked into one score per coin. Every component is a
+// mechanical read of real data; thresholds are calibrated from live sweeps
+// (funding baseline ≈11% APR when balanced; crowded coins run 50–140%).
+const SIG_W={magnet:.28,funding:.18,whales:.16,crowd:.14,cascade:.14,tape:.10};
+
+function sigAgg(){ // one pass over every tracked position → per-coin aggregates
+  const byHl={}; for(const r of REGISTRY)byHl[r.hl]=r;
+  const co={};
+  for(const [,acc] of S.hl.accounts){
+    const whale=acc.av>=BIAS_MIN_AV;
+    for(const p of acc.positions){
+      const r=byHl[p.coin]; if(!r)continue;
+      const m=S.marks[r.base]; if(!m)continue;
+      const mm=m*(r.hlM||1);
+      const c=co[r.base]||(co[r.base]={n:0,longV:0,shortV:0,wL:0,wS:0,up:0,dn:0,upN:0,dnN:0,upC:0,dnC:0,up2:0,dn2:0});
+      c.n++; if(p.szi>0)c.longV+=p.val; else c.shortV+=p.val;
+      if(whale){ if(p.szi>0)c.wL+=p.val; else c.wS+=p.val; }
+      if(p.liq){ const d=(p.liq-mm)/mm;   // shorts die above, longs die below — only those count as fuel
+        if(p.szi<0&&d>0&&d<0.10){ const w=p.val/Math.max(d,0.004); c.up+=w; c.upN+=p.val; c.upC++; if(d<0.02)c.up2+=p.val; }
+        if(p.szi>0&&d<0&&d>-0.10){ const w=p.val/Math.max(-d,0.004); c.dn+=w; c.dnN+=p.val; c.dnC++; if(-d<0.02)c.dn2+=p.val; }
+      }
+    }
+  }
+  return co;
+}
+
+function sigMarket(){ // whole-market dials, shared by every coin
+  const out={};
+  // cascade: liq burst in the last hour vs the 24h pace — forced flows exhaust, so bursts score contrarian
+  const w1=windowTotals(60), w24=windowTotals(1440);
+  if(w1.cov<0.25||w24.cov<0.08) out.cascade={ok:false,note:`need more watch time — only ${Math.round(w1.cov*100)}% of the last hour witnessed`};
+  else{
+    const l1=w1.long/Math.max(w1.cov,.01), s1=w1.short/Math.max(w1.cov,.01);
+    const pace=(w24.long+w24.short)/Math.max(w24.cov,.01)/24;
+    if(pace<300&&l1+s1<2e4) out.cascade={ok:false,note:'tape too quiet for a cascade read'};
+    else{ const lr=l1/Math.max(pace,1), sr=s1/Math.max(pace,1);
+      const score=clamp((lr-1.5)/4,0,1)-clamp((sr-1.5)/4,0,1);
+      out.cascade={ok:true,score,burstL:l1,burstS:s1,pace,
+        note:`${fmtUsd(l1)} longs · ${fmtUsd(s1)} shorts wiped this hour vs ${fmtUsd(pace)}/h 24h pace`+
+          (score>0.15?' — long flush = forced sellers exhausting (contrarian long)':score<-0.15?' — short squeeze burning out (contrarian short)':' — normal churn')}; }
+  }
+  // whale drift: which way the ≥$5M book moved over ~4h
+  const now=Date.now();
+  const ref=biasHist.find(x=>now-x.ts<5*3600e3&&now-x.ts>3*3600e3)||biasHist[0];
+  const cur=biasHist[biasHist.length-1];
+  if(ref&&cur&&cur.ts-ref.ts>30*60e3){
+    const lpNow=100*cur.l/(cur.l+cur.s), lpThen=100*ref.l/(ref.l+ref.s), d=lpNow-lpThen;
+    out.whaleShift={ok:true,score:clamp(d/8,-1,1),d,lpNow,hrs:(cur.ts-ref.ts)/3600e3};
+  } else out.whaleShift={ok:false};
+  return out;
+}
+
+function sigFor(base,agg,mkt){
+  const r=reg(base); const c=agg[base]; const ctx=S.hl.ctx[base]; const mark=S.marks[base];
+  const comps=[];
+  const push=(key,label,w,ok,score,note)=>comps.push({key,label,w,ok,score:ok?clamp(score,-1,1):0,note});
+  // 1. MAGNET — where the nearby liq fuel sits. Price hunts the bigger pool.
+  if(c&&(c.upN+c.dnN)>=2e5&&(c.upC+c.dnC)>=5){
+    push('magnet','MAGNET',SIG_W.magnet,true,(c.up-c.dn)/(c.up+c.dn),
+      `${fmtUsd(c.upN)} of shorts dies ≤10% above vs ${fmtUsd(c.dnN)} of longs below · inside 2%: ${fmtUsd(c.up2)} ↑ / ${fmtUsd(c.dn2)} ↓ — price hunts the bigger pool`);
+  } else push('magnet','MAGNET',SIG_W.magnet,false,0,`not enough mapped fuel near price yet (${c?fmtUsd(c.upN+c.dnN):'$0'} across ${c?c.upC+c.dnC:0} positions ≤10%)`);
+  // 2. FUNDING — the whole market's crowd meter. Balanced ≈ 11% APR on HL.
+  if(ctx&&isFinite(ctx.funding)){
+    const apr=ctx.funding*24*365*100;
+    push('funding','FUNDING',SIG_W.funding,true,-(apr-11)/80,
+      `${apr.toFixed(0)}% APR vs ~11% balanced baseline — ${apr>40?'longs paying heavily to stay in (crowded long, squeeze-down fuel)':apr<0?'shorts paying (crowded short, squeeze-up fuel)':'not stretched'}`);
+  } else push('funding','FUNDING',SIG_W.funding,false,0,'no funding data yet');
+  // 3. WHALES — follow the ≥$5M money on this coin
+  if(c&&(c.wL+c.wS)>=2e6){
+    const wl=100*c.wL/(c.wL+c.wS);
+    push('whales','WHALES',SIG_W.whales,true,(wl-50)/35,
+      `≥$5M accounts are ${wl.toFixed(0)}% long here (${fmtUsd(c.wL)} vs ${fmtUsd(c.wS)}) — the size usually isn't the exit liquidity`);
+  } else push('whales','WHALES',SIG_W.whales,false,0,'no whale-sized book tracked on this coin yet');
+  // 4. CROWD — fade the tracked majority only when it's lopsided
+  if(c&&c.n>=8&&(c.longV+c.shortV)>=1e5){
+    const lp=100*c.longV/(c.longV+c.shortV), e=lp-50;
+    const score=Math.abs(e)<15?0:-(e-Math.sign(e)*15)/35;
+    push('crowd','CROWD',SIG_W.crowd,true,score,
+      `tracked book ${lp.toFixed(0)}% long by $ across ${c.n} positions — ${Math.abs(e)<15?'balanced, no fade':'the crowded side is the fragile side'}`);
+  } else push('crowd','CROWD',SIG_W.crowd,false,0,`too few tracked positions (${c?c.n:0}) for a crowd read`);
+  // 5. CASCADE — market-wide forced-flow exhaustion
+  const casc=mkt.cascade;
+  push('cascade','CASCADE',SIG_W.cascade,!!casc.ok,casc.ok?casc.score:0,casc.note);
+  // 6. TAPE — don't fight the direction of travel
+  if(ctx&&ctx.prevDay&&mark){
+    const d24=100*(mark/ctx.prevDay-1);
+    push('tape','TAPE',SIG_W.tape,true,d24/6,
+      `${d24>=0?'+':''}${d24.toFixed(1)}% in 24h — trend filter, keeps the contrarian reads honest`);
+  } else push('tape','TAPE',SIG_W.tape,false,0,'no 24h reference yet');
+
+  const live=comps.filter(x=>x.ok);
+  const wSum=live.reduce((a,x)=>a+x.w,0);
+  const score=wSum?Math.round(100*live.reduce((a,x)=>a+x.w*x.score,0)/wSum):0;
+  const n=c?c.n:0, fuel=c?c.upN+c.dnN:0;
+  const conf= live.length<3?'LOW — thin data'
+    : (n>=40&&fuel>=1e6&&live.length>=5)?'HIGH'
+    : n>=12?'MEDIUM':'LOW — thin data';
+  let verdict,cls;
+  if(live.length<2){verdict='NO DATA';cls='';}
+  else if(score>=45){verdict='STRONG LONG';cls='up';}
+  else if(score>=18){verdict='LEAN LONG';cls='up';}
+  else if(score<=-45){verdict='STRONG SHORT';cls='down';}
+  else if(score<=-18){verdict='LEAN SHORT';cls='down';}
+  else {verdict='NO EDGE';cls='';}
+  return {base,score,comps,conf,verdict,cls,c,live:live.length};
+}
+
+// biggest liq clusters near price → concrete levels for the playbook
+function sigClusters(base){
+  const mark=S.marks[base]; if(!mark)return {above:[],below:[]};
+  const NB2=80, lo=mark*0.9, hi=mark*1.1;
+  const buckets=new Array(NB2).fill(null).map(()=>({usd:0,n:0}));
+  for(const p of coinPositions(base)){
+    if(p.liq<lo||p.liq>hi)continue;
+    if(p.side==='short'&&p.liq<=mark)continue; if(p.side==='long'&&p.liq>=mark)continue;
+    const bi=clamp(Math.floor((hi-p.liq)/(hi-lo)*NB2),0,NB2-1);
+    buckets[bi].usd+=p.val; buckets[bi].n++;
+    if(!buckets[bi].top||p.val>buckets[bi].top.val)buckets[bi].top=p;
+  }
+  const rows=buckets.map((b,i)=>({...b,px:hi-(i+0.5)/NB2*(hi-lo)})).filter(b=>b.usd>0);
+  const above=rows.filter(b=>b.px>mark).sort((a,b)=>b.usd-a.usd).slice(0,3);
+  const below=rows.filter(b=>b.px<mark).sort((a,b)=>b.usd-a.usd).slice(0,3);
+  return {above,below,mark};
+}
+
+function sigReadText(sig){
+  if(sig.live<2)return 'Not enough tracked data on this coin yet — the scanner is still building the book. Check MARKET SCAN for coins with live signals.';
+  const drivers=sig.comps.filter(x=>x.ok&&Math.abs(x.score)>=0.25)
+    .sort((a,b)=>Math.abs(b.score*b.w)-Math.abs(a.score*a.w)).slice(0,2);
+  const dtxt=drivers.length?drivers.map(d=>`<b>${d.label.toLowerCase()}</b> ${d.score>0?'points up':'points down'} (${d.score>0?'+':''}${d.score.toFixed(2)})`).join(' and ')
+    :'every read is near flat';
+  if(sig.verdict==='NO EDGE')
+    return `The reads cancel out — ${dtxt}. Pressure is balanced; this is a coin-flip zone. Wait for a one-sided cluster inside 3%, funding leaving its ~11% baseline, or a liquidation burst.`;
+  const dir=sig.score>0?'up':'down';
+  return `Net pressure points <b>${dir}</b> (${sig.score>0?'+':''}${sig.score}): ${dtxt}. `+
+    (Math.abs(sig.score)>=45?'Most of the tracked structure agrees — the cleaner side of the trade is with the score.':'A lean, not a table-pound — size accordingly and let the levels below do the timing.');
+}
+
+function sigPlaybook(sig,cl){
+  const L=[]; const mark=cl.mark;
+  const pc=px=>((px/mark-1)*100).toFixed(2)+'%';
+  const a=cl.above[0], b=cl.below[0];
+  // dips and pops hit the NEAREST meaningful pocket first; the biggest one is the invalidation line
+  const nearAbove=a?cl.above.filter(x=>x.usd>=a.usd*0.3).sort((x,y)=>x.px-y.px)[0]:null;
+  const nearBelow=b?cl.below.filter(x=>x.usd>=b.usd*0.3).sort((x,y)=>y.px-x.px)[0]:null;
+  if(sig.live<2){ return `<div class="playline"><span class="tag">WAIT</span><span class="txt">No playbook without data — let the scanner run, or pick a coin from MARKET SCAN.</span></div>`; }
+  if(sig.verdict==='NO EDGE'){
+    L.push(`<div class="playline"><span class="tag">STANCE</span><span class="txt"><b>Stand aside.</b> ${a?`${fmtUsd(a.usd)} of short-fuel at ${fmtPx(a.px)} (+${pc(a.px)})`:'no meaningful fuel above'} vs ${b?`${fmtUsd(b.usd)} of long-fuel at ${fmtPx(b.px)} (${pc(b.px)})`:'none below'} — neither pool dominates.</span></div>`);
+    L.push(`<div class="playline"><span class="tag">TRIGGER</span><span class="txt">Re-check when one side stacks: a burst on the wipe feed, or funding stretching past ~40% APR, flips this to a lean.</span></div>`);
+  } else if(sig.score>0){
+    if(a)L.push(`<div class="playline"><span class="tag">TARGET</span><span class="txt">First magnet above: <b>${fmtPx(a.px)}</b> (+${pc(a.px)}) where <b>${fmtUsd(a.usd)}</b> of shorts force-close — moves accelerate into a pool and stall after it's swept.</span></div>`);
+    L.push(`<div class="playline"><span class="tag">ENTRY</span><span class="txt">Long side favored — entries on dips ${nearBelow?`toward the <b>${fmtPx(nearBelow.px)}</b> long pocket (${pc(nearBelow.px)}, ${fmtUsd(nearBelow.usd)})`:'toward recent lows'} beat chasing; that's where flushes aim first.</span></div>`);
+    if(b)L.push(`<div class="playline"><span class="tag">INVALID</span><span class="txt">Acceptance below <b>${fmtPx(b.px)}</b> kills the idea: past that pocket ${fmtUsd(b.usd)} of longs is gone and the magnet flips downward.</span></div>`);
+    if(a)L.push(`<div class="playline"><span class="tag">EXIT</span><span class="txt">Take profit <b>into</b> the sweep, not after — once the ${fmtUsd(a.usd)} clears there is nothing left up there to fuel the move.</span></div>`);
+  } else {
+    if(b)L.push(`<div class="playline"><span class="tag">TARGET</span><span class="txt">First magnet below: <b>${fmtPx(b.px)}</b> (${pc(b.px)}) where <b>${fmtUsd(b.usd)}</b> of longs force-close — flushes run at the biggest pocket first.</span></div>`);
+    L.push(`<div class="playline"><span class="tag">ENTRY</span><span class="txt">Short side favored — entries on pops ${nearAbove?`toward the <b>${fmtPx(nearAbove.px)}</b> short pocket (+${pc(nearAbove.px)}, ${fmtUsd(nearAbove.usd)})`:'toward recent highs'} beat chasing the flush.</span></div>`);
+    if(a)L.push(`<div class="playline"><span class="tag">INVALID</span><span class="txt">Acceptance above <b>${fmtPx(a.px)}</b> kills it: sweeping that ${fmtUsd(a.usd)} short pocket turns the magnet upward.</span></div>`);
+    if(b)L.push(`<div class="playline"><span class="tag">EXIT</span><span class="txt">Cover <b>into</b> the flush — the ${fmtUsd(b.usd)} pool is the fuel, and it's spent the moment it trades.</span></div>`);
+  }
+  return L.join('');
+}
+
+let scanCache={ts:0,rows:[]};
+function renderSignal(){
+  if(S.view!=='signal')return;
+  const agg=sigAgg(), mkt=sigMarket();
+  const sig=sigFor(S.coin,agg,mkt);
+  const mark=S.marks[S.coin], ctx=S.hl.ctx[S.coin];
+  $('sigCoin').textContent=S.coin;
+  $('sigPx').textContent=mark?'$'+fmtPx(mark):'—';
+  if(ctx&&ctx.prevDay&&mark){ const d=(mark/ctx.prevDay-1)*100;
+    const el=$('sigPx24'); el.textContent=(d>=0?'+':'')+d.toFixed(2)+'% 24h'; el.className='num '+(d>=0?'up':'down'); }
+  $('sigConf').textContent='CONFIDENCE: '+sig.conf;
+  const v=$('sigVerdict'); v.textContent=sig.verdict; v.className='sigverdict '+sig.cls;
+  $('sigScore').textContent=sig.live>=2?((sig.score>0?'+':'')+sig.score+' / ±100'):'';
+  $('sigNeedle').style.left=(50+clamp(sig.score,-100,100)/2)+'%';
+  $('sigRead').innerHTML=sigReadText(sig);
+  $('sigComps').innerHTML=sig.comps.map(x=>{
+    const pct=Math.abs(x.score)*50, side=x.score>=0;
+    return `<div class="sigcomp${x.ok?'':' dead'}">
+      <div class="sigcomp-top"><span class="lbl">${x.label}</span>
+        <div class="minibar"><span class="mid"></span>${x.ok&&Math.abs(x.score)>0.01?`<i style="${side?'left:50%':'right:50%'};width:${pct}%;background:${side?'var(--long)':'var(--short)'}"></i>`:''}</div>
+        <span class="sc num ${x.ok?(x.score>0.01?'up':x.score<-0.01?'down':''):''}">${x.ok?(x.score>0?'+':'')+x.score.toFixed(2):'—'}</span></div>
+      <div class="note">${x.note}</div></div>`; }).join('');
+  // playbook + levels
+  const cl=sigClusters(S.coin);
+  $('sigPlay').innerHTML=sigPlaybook(sig,cl);
+  const lv=[...cl.above.map(x=>({...x,side:'short'})),...cl.below.map(x=>({...x,side:'long'}))]
+    .sort((a,b)=>b.px-a.px);
+  $('sigLevels').innerHTML=lv.length?`<thead><tr><th>level</th><th>side</th><th>dist</th><th>$ dies there</th><th>#</th></tr></thead><tbody>`+
+    lv.map(x=>`<tr><td class="num">${fmtPx(x.px)}</td><td class="${x.side==='short'?'down':'up'}">${x.side==='short'?'SHORTS':'LONGS'}</td>
+      <td class="num">${x.px>cl.mark?'+':''}${((x.px/cl.mark-1)*100).toFixed(2)}%</td>
+      <td class="num">${fmtUsd(x.usd)}</td><td class="num">${x.n}</td></tr>`).join('')+'</tbody>':'';
+  // market scan — throttled, it walks every coin
+  if(Date.now()-scanCache.ts>10000){
+    scanCache={ts:Date.now(),rows:REGISTRY.filter(r=>agg[r.base]&&(r.vol||0)>3e6)
+      .map(r=>sigFor(r.base,agg,mkt)).filter(s=>s.live>=3&&s.base!==undefined)
+      .sort((a,b)=>Math.abs(b.score)-Math.abs(a.score)).slice(0,12)};
+  }
+  $('sigScan').innerHTML=scanCache.rows.length?scanCache.rows.map(s=>{
+    const top=s.comps.filter(x=>x.ok).sort((a,b)=>Math.abs(b.score*b.w)-Math.abs(a.score*a.w))[0];
+    return `<button class="scanrow" data-c="${s.base}">
+      <span class="coin">${s.base}</span>
+      <div class="minibar" style="max-width:90px"><span class="mid"></span>${Math.abs(s.score)>1?`<i style="${s.score>=0?'left:50%':'right:50%'};width:${Math.abs(s.score)/2}%;background:${s.score>=0?'var(--long)':'var(--short)'}"></i>`:''}</div>
+      <span class="verdict ${s.cls}">${s.verdict} ${s.live>=2?(s.score>0?'+':'')+s.score:''}</span>
+      <span class="why">${top?top.label.toLowerCase():''}</span></button>`; }).join('')
+   :'<div class="feedempty">building signals — needs a few coins with tracked positions</div>';
+  // market state
+  const b=computeBias(); const w1=windowTotals(60), w24=windowTotals(1440);
+  const ms=[];
+  if(b.L+b.S){ const lp=100*b.L/(b.L+b.S);
+    ms.push(`<div class="mstat"><span class="k">whale book (≥$5M, all coins)</span><b class="num ${lp>=50?'up':'down'}">${lp.toFixed(1)}% long</b></div>`); }
+  if(mkt.whaleShift.ok) ms.push(`<div class="mstat"><span class="k">whale drift · ${mkt.whaleShift.hrs.toFixed(1)}h</span><b class="num ${mkt.whaleShift.d>=0?'up':'down'}">${mkt.whaleShift.d>=0?'▲':'▼'} ${Math.abs(mkt.whaleShift.d).toFixed(1)}pts ${mkt.whaleShift.d>=0?'toward long':'toward short'}</b></div>`);
+  ms.push(`<div class="mstat"><span class="k">wiped last hour ${w1.cov<0.95?`(${Math.round(w1.cov*100)}% seen)`:''}</span><b class="num"><span class="up">${fmtUsd(w1.long)} L</span> · <span class="down">${fmtUsd(w1.short)} S</span></b></div>`);
+  ms.push(`<div class="mstat"><span class="k">wiped 24h ${w24.cov<0.95?`(${Math.round(w24.cov*100)}% seen)`:''}</span><b class="num"><span class="up">${fmtUsd(w24.long)} L</span> · <span class="down">${fmtUsd(w24.short)} S</span></b></div>`);
+  const aprs=REGISTRY.filter(r=>(r.vol||0)>5e6&&S.hl.ctx[r.base]&&isFinite(S.hl.ctx[r.base].funding))
+    .map(r=>S.hl.ctx[r.base].funding*24*365*100);
+  if(aprs.length){ const hot=aprs.filter(a=>a>40).length, neg=aprs.filter(a=>a<0).length;
+    ms.push(`<div class="mstat"><span class="k">funding breadth (${aprs.length} coins)</span><b class="num">${hot} crowded-long · ${neg} crowded-short</b></div>`); }
+  $('sigMkt').innerHTML=ms.join('');
+}
+$('sigScan').addEventListener('click',e=>{ const b=e.target.closest('.scanrow'); if(b){ selectCoin(b.dataset.c); renderSignal(); } });
+
+/* ---- view switching ---- */
+S.view='map';
+$('viewTabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  S.view=b.dataset.v;
+  document.querySelectorAll('#viewTabs button').forEach(x=>x.classList.toggle('on',x===b));
+  $('sigMain').hidden=S.view!=='signal';
+  document.querySelector('main:not(#sigMain)').hidden=S.view!=='map';
+  $('filters2').style.display=S.view==='map'?'':'none';
+  if(S.view==='signal')renderSignal(); else { sizeLadder(); drawLadder(); }
+});
+
 /* ================= boot ================= */
 renderCoinDropdown(''); renderVenueChips(); renderStats(); renderHL(); sizeLadder();
 applyWatchlist();
 hlConnect();
 initRegistry().then(async()=>{ pollStats(); renderPrice(); fetchCandles();
   if(!await loadSnap())loadLeaderboard(); });
-setInterval(()=>{ if(!document.hidden){renderHL();renderBias();renderTotals();renderWindows();} },5000);
+setInterval(()=>{ if(!document.hidden){renderHL();renderBias();renderTotals();renderWindows();renderSignal();} },5000);
 renderWindows();
 </script>
 </body>

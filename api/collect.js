@@ -3,12 +3,21 @@
 // per ~minute. Each run: sweeps a slice of Hyperliquid wallets (near-liq first),
 // captures Lighter liquidations (WS listen + REST backfill), and publishes one
 // compact snapshot that the page loads at boot.
+//
+// Storage discipline (the old version burned the Blob free tier in ~36h):
+// meta.json is a tiny throttle stamp read first; state/universe live in warm
+// instance memory between runs and are only re-read on cold starts; everything
+// is written gzipped through the adapter.
 import { readJson, writeJson } from './_store.js';
 
 const HL = 'https://api.hyperliquid.xyz/info';
 const LI = 'https://mainnet.zklighter.elliot.ai';
 const BIN = t => Math.floor(t / 30000);
 const DAY_BINS = 2880;
+
+// warm-instance cache: with steady pings the same instance keeps serving,
+// so most runs never re-read state or the universe from storage
+const MEM = { state: null, stamped: 0, uni: null, uniAt: 0 };
 
 async function hl(body){
   const r = await fetch(HL, { method: 'POST',
@@ -26,7 +35,9 @@ export default async function handler(req, res){
   }
 }
 
-// daily: refresh the wallet universe from the ~35MB leaderboard
+// daily: refresh the wallet universe from the ~35MB leaderboard.
+// Only the hot ring + names are stored — the cold long-tail sweep is a
+// browser-side job (open tabs download the full leaderboard themselves).
 async function universe(res){
   const r = await fetch('https://stats-data.hyperliquid.xyz/Mainnet/leaderboard');
   const rows = (await r.json()).leaderboardRows;
@@ -36,37 +47,49 @@ async function universe(res){
              vl: parseFloat(wk.vlm) || 0, n: x.displayName || null };
   });
   slim.sort((a, b) => b.v - a.v);
-  const hotSet = new Set(slim.slice(0, 3200).map(x => x.a));
-  for (const x of slim.slice().sort((a, b) => b.vl - a.vl).slice(0, 800)) hotSet.add(x.a);
-  const hot = [], cold = [], names = {};
-  for (const x of slim){ if (x.n) names[x.a] = x.n; (hotSet.has(x.a) ? hot : cold).push(x.a); }
-  await writeJson('universe.json', { ts: Date.now(), hot, cold, names, total: slim.length });
+  const hotSet = new Set(slim.slice(0, 3600).map(x => x.a));
+  for (const x of slim.slice().sort((a, b) => b.vl - a.vl).slice(0, 1000)) hotSet.add(x.a);
+  const hot = [], names = {};
+  for (const x of slim){ if (!hotSet.has(x.a)) continue;
+    hot.push(x.a); if (x.n) names[x.a] = x.n; }
+  const uni = { ts: Date.now(), hot, names, total: slim.length };
+  await writeJson('universe.json', uni);
+  MEM.uni = uni; MEM.uniAt = Date.now();
   return res.json({ ok: true, total: slim.length, hot: hot.length });
 }
 
 async function collect(res){
-  const st = await readJson('state.json') ||
-    { lastRun: 0, hotIdx: 0, coldIdx: 0, harvestIdx: 0,
+  // cheap throttle: a ~60-byte stamp, not the whole state
+  const meta = await readJson('meta.json') || { lastRun: 0 };
+  if (Date.now() - meta.lastRun < 50e3)
+    return res.json({ ok: true, skipped: true, ageS: Math.round((Date.now() - meta.lastRun) / 1000) });
+
+  let st;
+  if (MEM.state && MEM.stamped === meta.lastRun) st = MEM.state;   // warm path: nothing else wrote since we did
+  else st = await readJson('state.json') ||
+    { lastRun: 0, hotIdx: 0, harvestIdx: 0,
       accounts: {}, bins: {}, watched: [], liLast: {}, biasHist: [], harvest: [] };
-  if (Date.now() - st.lastRun < 50e3)
-    return res.json({ ok: true, skipped: true, ageS: Math.round((Date.now() - st.lastRun) / 1000) });
-  const uni = await readJson('universe.json');
+
+  if (!MEM.uni || Date.now() - MEM.uniAt > 6 * 3600e3){
+    MEM.uni = await readJson('universe.json'); MEM.uniAt = Date.now();
+  }
+  const uni = MEM.uni;
   if (!uni) return res.status(503).json({ ok: false, err: 'no universe — call ?task=universe first' });
 
   const t0 = Date.now();
-  const prevRun = st.lastRun; st.lastRun = t0;
+  const prevRun = meta.lastRun; st.lastRun = t0;
 
   const addLiq = (ts, venue, side, usd) => {
     if (!usd || !isFinite(usd)) return;
     const b = st.bins[BIN(ts)] ??= {};
     const v = b[venue] ??= { long: 0, short: 0 };
-    v[side] += usd;
+    v[side] = Math.round(v[side] + usd);
   };
 
   // --- market meta: marks for every live coin ---
-  const [meta, ctxs] = await hl({ type: 'metaAndAssetCtxs' });
+  const [hlMeta, ctxs] = await hl({ type: 'metaAndAssetCtxs' });
   const markByHl = {}; const active = [];
-  meta.universe.forEach((u, i) => {
+  hlMeta.universe.forEach((u, i) => {
     if (u.isDelisted) return; const c = ctxs[i]; if (!c) return;
     markByHl[u.name] = parseFloat(c.markPx);
     const vol = parseFloat(c.dayNtlVlm) || 0;
@@ -120,7 +143,7 @@ async function collect(res){
     }
   })();
 
-  // --- Hyperliquid sweep slice: near-liq first, then hot / harvested / cold ---
+  // --- Hyperliquid sweep slice: near-liq first, then hot ring / harvested actives ---
   const nearList = [];
   for (const [a, acc] of Object.entries(st.accounts)){
     let best = 1;
@@ -131,29 +154,26 @@ async function collect(res){
   }
   nearList.sort((a, b) => a[1] - b[1]);
   const targets = new Set(nearList.slice(0, 90).map(x => x[0]));
-  for (let i = 0; i < 55 && uni.hot.length; i++)
+  for (let i = 0; i < 65 && uni.hot.length; i++)
     targets.add(uni.hot[(st.hotIdx + i) % uni.hot.length]);
-  st.hotIdx = (st.hotIdx + 55) % Math.max(1, uni.hot.length);
-  for (let i = 0; i < 25 && st.harvest.length; i++)
+  st.hotIdx = (st.hotIdx + 65) % Math.max(1, uni.hot.length);
+  for (let i = 0; i < 35 && st.harvest.length; i++)
     targets.add(st.harvest[(st.harvestIdx + i) % st.harvest.length]);
-  st.harvestIdx = (st.harvestIdx + 25) % Math.max(1, st.harvest.length);
-  for (let i = 0; i < 15 && uni.cold.length; i++)
-    targets.add(uni.cold[(st.coldIdx + i) % uni.cold.length]);
-  st.coldIdx = (st.coldIdx + 15) % Math.max(1, uni.cold.length);
+  st.harvestIdx = (st.harvestIdx + 35) % Math.max(1, st.harvest.length);
 
   const list = [...targets];
   let scanned = 0, wipes = 0;
   const scanOne = async a => {
     let j; try{ j = await hl({ type: 'clearinghouseState', user: a }); }catch{ return; }
     scanned++;
-    const av = parseFloat(j.marginSummary?.accountValue) || 0;
+    const av = Math.round(parseFloat(j.marginSummary?.accountValue) || 0);
     const prev = st.accounts[a];
     const positions = (j.assetPositions || []).map(x => x.position).map(p => {
       const szi = parseFloat(p.szi);
       return [p.coin, szi, parseFloat(p.entryPx),
         p.liquidationPx ? parseFloat(p.liquidationPx) : 0,
-        Math.abs(parseFloat(p.positionValue)), p.leverage?.value || 0,
-        p.leverage?.type === 'cross' ? 1 : 0, parseFloat(p.unrealizedPnl) || 0, 0];
+        Math.round(Math.abs(parseFloat(p.positionValue))), p.leverage?.value || 0,
+        p.leverage?.type === 'cross' ? 1 : 0, Math.round(parseFloat(p.unrealizedPnl) || 0), 0];
     });
     if (prev) for (const pp of prev[1]){
       const [coin, szi,, liq, val] = pp; if (!liq) continue;
@@ -204,16 +224,18 @@ async function collect(res){
     if (acc[0] < 5e6) continue;
     for (const p of acc[1]){ if (p[1] > 0) bl += p[4]; else bs += p[4]; }
   }
-  if (bl + bs) st.biasHist.push({ t: t0, l: bl, s: bs });
+  if (bl + bs) st.biasHist.push({ t: t0, l: Math.round(bl), s: Math.round(bs) });
   st.biasHist = st.biasHist.filter(x => t0 - x.t < 24 * 3600e3).slice(-720);
 
   // --- publish snapshot ---
   const names = {};
   for (const a of Object.keys(st.accounts)) if (uni.names[a]) names[a] = uni.names[a];
-  const snap = { ts: t0, universeN: uni.total, hot: uni.hot.slice(0, 4000), names,
+  const snap = { ts: t0, universeN: uni.total, hot: uni.hot.slice(0, 1500), names,
     accounts: st.accounts, bins: st.bins, watched: st.watched, biasHist: st.biasHist };
   await writeJson('snap.json', snap);
   await writeJson('state.json', st);
+  await writeJson('meta.json', { lastRun: t0 });
+  MEM.state = st; MEM.stamped = t0;
   return res.json({ ok: true, ms: Date.now() - t0, scanned, wipes,
     liqsSeen: runSeen.size, accounts: Object.keys(st.accounts).length });
 }

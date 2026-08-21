@@ -1,0 +1,13 @@
+name: universe refresh
+# daily: rebuild the wallet universe from Hyperliquid's leaderboard
+on:
+  schedule:
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: curl -sf --max-time 120 "https://wipeout-kappa.vercel.app/api/collect?task=universe"
